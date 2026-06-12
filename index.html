@@ -1,74 +1,88 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #111; touch-action: none; font-family: sans-serif; }
-        #game-map { width: 100vw; height: 100vh; position: relative; background: #222; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 100px; top: 100px; transition: 0.05s; }
+        /* 修正：移除 body 的 overflow: hidden 以便某些手機瀏覽器能更好處理觸控 */
+        body { background: #111; color: white; margin: 0; touch-action: none; font-family: sans-serif; height: 100vh; }
         
-        /* 搖桿底座 */
-        #joy-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; }
-        /* 搖桿頭 */
-        #joy-knob { width: 60px; height: 60px; background: white; border-radius: 50%; position: absolute; left: 30px; top: 30px; }
+        #game-view { width: 100vw; height: 80vh; position: relative; border-bottom: 4px solid #fff; background: #222; overflow: hidden; }
+        
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; pointer-events: none; }
+        
+        #monster { width: 40px; height: 40px; background: orange; position: absolute; left: 240px; top: 240px; }
+        
+        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 30px; right: 30px; font-size: 20px; border: none; color: white; z-index: 10; }
     </style>
 </head>
 <body>
 
-<div id="game-map">
+<div id="game-view">
     <div id="player"></div>
+    <div id="monster"></div>
 </div>
 
-<div id="joy-base">
-    <div id="joy-knob"></div>
-</div>
+<button id="attack-btn">攻擊</button>
 
 <script>
-    const supabase = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM');
+    const supabase = supabase.createClient(
+        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+    );
     
-    let px = 100, py = 100;
-    let isDragging = false;
-    const knob = document.getElementById('joy-knob');
+    const player = document.getElementById('player');
+    const gameView = document.getElementById('game-view');
+    let px = 50, py = 50;
 
-    // 觸控開始
-    document.getElementById('joy-base').addEventListener('touchstart', (e) => isDragging = true);
-    
-    // 觸控移動
-    document.addEventListener('touchmove', (e) => {
-        if (!isDragging) return;
+    // 核心修正：統一處理移動邏輯
+    function movePlayer(e) {
+        // 取得第一個觸控點
         let touch = e.touches[0];
-        let base = document.getElementById('joy-base').getBoundingClientRect();
+        let rect = gameView.getBoundingClientRect();
         
-        // 計算搖桿相對位移 (範圍 -30 到 +30)
-        let dx = touch.clientX - (base.left + 60);
-        let dy = touch.clientY - (base.top + 60);
-        let dist = Math.sqrt(dx*dx + dy*dy);
-        let angle = Math.atan2(dy, dx);
+        // 計算座標並限制在遊戲區域內
+        let newX = touch.clientX - rect.left - 20;
+        let newY = touch.clientY - rect.top - 20;
         
-        // 限制搖桿頭不跑出底座
-        let limit = Math.min(dist, 30);
-        knob.style.left = (30 + Math.cos(angle) * limit) + 'px';
-        knob.style.top = (30 + Math.sin(angle) * limit) + 'px';
+        // 邊界檢查 (防止移出螢幕)
+        px = Math.max(0, Math.min(newX, rect.width - 40));
+        py = Math.max(0, Math.min(newY, rect.height - 40));
         
-        // 移動玩家 (方向 * 速度)
-        px += (dx/30) * 10;
-        py += (dy/30) * 10;
-        document.getElementById('player').style.left = px + 'px';
-        document.getElementById('player').style.top = py + 'px';
-    });
+        player.style.left = px + 'px';
+        player.style.top = py + 'px';
+    }
 
-    // 觸控結束
-    document.addEventListener('touchend', () => {
-        isDragging = false;
-        knob.style.left = '30px';
-        knob.style.top = '30px';
+    // 監聽器綁定
+    gameView.addEventListener('touchmove', (e) => {
+        movePlayer(e);
+    }, {passive: false}); // 必須設為 false 才能 e.preventDefault()
+
+    gameView.addEventListener('touchstart', (e) => {
+        movePlayer(e);
+    }, {passive: false});
+
+    gameView.addEventListener('touchend', () => {
         saveGame();
     });
 
+    document.getElementById('attack-btn').addEventListener('click', () => {
+        let dist = Math.sqrt(Math.pow(px - 240, 2) + Math.pow(py - 240, 2));
+        if(dist < 60) {
+            alert("擊中怪物！");
+        } else {
+            alert("太遠了，打不到！");
+        }
+    });
+
     async function saveGame() {
-        await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
+        const { error } = await supabase
+            .from('player_stars')
+            .upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
+        
+        if (error) console.error("存檔失敗:", error.message);
+        else console.log("座標已同步:", Math.floor(px), Math.floor(py));
     }
 </script>
 </body>
