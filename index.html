@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: 'Arial', sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }
+        #game-area { max-width: 500px; margin: auto; border: 2px solid #555; padding: 20px; border-radius: 10px; background: #222; }
+        #monster-box { width: 150px; height: 150px; background: #444; margin: 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; transition: transform 0.1s; }
+        #monster-box:active { transform: scale(0.9); }
+        .bar { width: 100%; height: 20px; background: #000; margin: 10px 0; }
+        #hp-fill { height: 100%; background: #ff4444; width: 100%; transition: width 0.1s; }
+        .btn { display: block; width: 100%; padding: 10px; margin: 10px 0; background: #4a90e2; border: none; color: white; cursor: pointer; border-radius: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="game-area">
+    <h2>武士修煉場</h2>
+    <div id="stats">金幣: <span id="gold">0</span> | 攻擊力: <span id="atk">10</span></div>
+    
+    <div id="monster-box" onclick="hitMonster()">打怪！</div>
+    <div class="bar"><div id="hp-fill"></div></div>
+    <p>怪物 HP: <span id="m-hp">100</span>/100</p>
+
+    <button class="btn" onclick="buyWeapon()">購買強大武士刀 (花費 100 金幣)</button>
+    <button class="btn" onclick="upgradeAtk()">強化基礎屬性 (花費 50 金幣)</button>
+</div>
+
+<script>
+    let gold = 0, atk = 10, mHp = 100, maxHp = 100;
+
+    function hitMonster() {
+        mHp -= atk;
+        if (mHp <= 0) {
+            gold += 20;
+            mHp = maxHp + 50; // 越打越強
+            maxHp = mHp;
+        }
+        updateUI();
+    }
+
+    function buyWeapon() {
+        if (gold >= 100) {
+            gold -= 100;
+            atk += 20;
+            alert("獲得新武器！攻擊力大增！");
+            updateUI();
+        } else { alert("金幣不足！"); }
+    }
+
+    function upgradeAtk() {
+        if (gold >= 50) {
+            gold -= 50;
+            atk += 5;
+            updateUI();
+        } else { alert("金幣不足！"); }
+    }
+
+    function updateUI() {
+        document.getElementById("gold").innerText = gold;
+        document.getElementById("atk").innerText = atk;
+        document.getElementById("m-hp").innerText = Math.max(0, mHp);
+        document.getElementById("hp-fill").style.width = (mHp / maxHp * 100) + "%";
+    }
+</script>
+</body>
+</html>
