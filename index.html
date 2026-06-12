@@ -2,66 +2,66 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { font-family: 'Arial', sans-serif; background: #1a1a1a; color: white; text-align: center; padding: 20px; }
-        #game-area { max-width: 500px; margin: auto; border: 2px solid #555; padding: 20px; border-radius: 10px; background: #222; }
-        #monster-box { width: 150px; height: 150px; background: #444; margin: 20px auto; display: flex; align-items: center; justify-content: center; border-radius: 50%; cursor: pointer; transition: transform 0.1s; }
-        #monster-box:active { transform: scale(0.9); }
-        .bar { width: 100%; height: 20px; background: #000; margin: 10px 0; }
-        #hp-fill { height: 100%; background: #ff4444; width: 100%; transition: width 0.1s; }
-        .btn { display: block; width: 100%; padding: 10px; margin: 10px 0; background: #4a90e2; border: none; color: white; cursor: pointer; border-radius: 5px; }
+        body { background: #111; color: white; text-align: center; font-family: sans-serif; }
+        #game-view { position: relative; width: 400px; height: 400px; margin: auto; border: 4px solid #fff; overflow: hidden; }
+        #map, #battle { width: 100%; height: 100%; position: absolute; }
+        #battle { background: #222; display: none; }
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; }
+        .btn { padding: 10px 20px; cursor: pointer; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div id="game-area">
-    <h2>武士修煉場</h2>
-    <div id="stats">金幣: <span id="gold">0</span> | 攻擊力: <span id="atk">10</span></div>
-    
-    <div id="monster-box" onclick="hitMonster()">打怪！</div>
-    <div class="bar"><div id="hp-fill"></div></div>
-    <p>怪物 HP: <span id="m-hp">100</span>/100</p>
+<div id="game-view">
+    <div id="map" onclick="movePlayer(event)">
+        <div id="player"></div>
+        <div style="width:40px;height:40px;background:red;position:absolute;left:240px;top:240px;"></div>
+    </div>
 
-    <button class="btn" onclick="buyWeapon()">購買強大武士刀 (花費 100 金幣)</button>
-    <button class="btn" onclick="upgradeAtk()">強化基礎屬性 (花費 50 金幣)</button>
+    <div id="battle">
+        <h2>戰鬥中！</h2>
+        <div id="monster-img" style="font-size:60px;" onclick="hit()">👹</div>
+        <p>怪物 HP: <span id="m-hp">100</span></p>
+        <button class="btn" onclick="backToMap()">逃跑</button>
+    </div>
 </div>
 
 <script>
-    let gold = 0, atk = 10, mHp = 100, maxHp = 100;
+    let gameState = "map"; // 狀態：map 或 battle
+    let mHp = 100;
 
-    function hitMonster() {
-        mHp -= atk;
-        if (mHp <= 0) {
-            gold += 20;
-            mHp = maxHp + 50; // 越打越強
-            maxHp = mHp;
+    // --- 地圖移動邏輯 ---
+    function movePlayer(e) {
+        if(gameState !== "map") return;
+        let x = Math.floor(e.offsetX / 40) * 40;
+        let y = Math.floor(e.offsetY / 40) * 40;
+        document.getElementById('player').style.left = x + 'px';
+        document.getElementById('player').style.top = y + 'px';
+
+        if(x === 240 && y === 240) {
+            document.getElementById('map').style.display = "none";
+            document.getElementById('battle').style.display = "block";
+            gameState = "battle";
         }
-        updateUI();
     }
 
-    function buyWeapon() {
-        if (gold >= 100) {
-            gold -= 100;
-            atk += 20;
-            alert("獲得新武器！攻擊力大增！");
-            updateUI();
-        } else { alert("金幣不足！"); }
+    // --- 戰鬥邏輯 ---
+    function hit() {
+        mHp -= 20;
+        document.getElementById('m-hp').innerText = mHp;
+        if(mHp <= 0) {
+            alert("獲勝！獲得金幣！");
+            backToMap();
+        }
     }
 
-    function upgradeAtk() {
-        if (gold >= 50) {
-            gold -= 50;
-            atk += 5;
-            updateUI();
-        } else { alert("金幣不足！"); }
-    }
-
-    function updateUI() {
-        document.getElementById("gold").innerText = gold;
-        document.getElementById("atk").innerText = atk;
-        document.getElementById("m-hp").innerText = Math.max(0, mHp);
-        document.getElementById("hp-fill").style.width = (mHp / maxHp * 100) + "%";
+    function backToMap() {
+        document.getElementById('map').style.display = "block";
+        document.getElementById('battle').style.display = "none";
+        gameState = "map";
+        mHp = 100; // 重置怪物血量
+        document.getElementById('m-hp').innerText = 100;
     }
 </script>
 </body>
