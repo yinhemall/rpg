@@ -2,67 +2,79 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { background: #111; color: white; text-align: center; font-family: sans-serif; }
-        #game-view { position: relative; width: 400px; height: 400px; margin: auto; border: 4px solid #fff; overflow: hidden; }
-        #map, #battle { width: 100%; height: 100%; position: absolute; }
-        #battle { background: #222; display: none; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; }
-        .btn { padding: 10px 20px; cursor: pointer; margin-top: 10px; }
+        #game-view { position: relative; width: 400px; height: 400px; margin: auto; border: 4px solid #fff; overflow: hidden; background: #333; }
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; left:0; top:0; transition: 0.1s; }
+        #controls { margin-top: 10px; }
+        .btn { padding: 15px 25px; cursor: pointer; font-size: 18px; margin: 5px; }
+        #battle-ui { position: absolute; top: 0; width: 100%; height: 100%; background: #222; display: none; }
     </style>
 </head>
 <body>
 
 <div id="game-view">
-    <div id="map" onclick="movePlayer(event)">
-        <div id="player"></div>
-        <div style="width:40px;height:40px;background:red;position:absolute;left:240px;top:240px;"></div>
-    </div>
-
-    <div id="battle">
+    <div id="player"></div>
+    <div id="monster" style="width:40px;height:40px;background:red;position:absolute;left:240px;top:240px;"></div>
+    
+    <div id="battle-ui">
         <h2>戰鬥中！</h2>
-        <div id="monster-img" style="font-size:60px;" onclick="hit()">👹</div>
         <p>怪物 HP: <span id="m-hp">100</span></p>
-        <button class="btn" onclick="backToMap()">逃跑</button>
+        <button class="btn" onclick="hit()">攻擊！⚔️</button>
     </div>
 </div>
 
+<div id="controls">
+    <button class="btn" onclick="move('up')">↑</button><br>
+    <button class="btn" onclick="move('left')">←</button>
+    <button class="btn" onclick="move('right')">→</button><br>
+    <button class="btn" onclick="move('down')">↓</button>
+</div>
+
 <script>
-    let gameState = "map"; // 狀態：map 或 battle
+    const supabase = supabase.createClient(
+        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+    );
+
+    let px = 0, py = 0;
     let mHp = 100;
 
-    // --- 地圖移動邏輯 ---
-    function movePlayer(e) {
-        if(gameState !== "map") return;
-        let x = Math.floor(e.offsetX / 40) * 40;
-        let y = Math.floor(e.offsetY / 40) * 40;
-        document.getElementById('player').style.left = x + 'px';
-        document.getElementById('player').style.top = y + 'px';
+    // --- 搖桿移動 ---
+    function move(dir) {
+        if(dir === 'up' && py > 0) py -= 40;
+        if(dir === 'down' && py < 360) py += 40;
+        if(dir === 'left' && px > 0) px -= 40;
+        if(dir === 'right' && px < 360) px += 40;
+        
+        document.getElementById('player').style.left = px + 'px';
+        document.getElementById('player').style.top = py + 'px';
 
-        if(x === 240 && y === 240) {
-            document.getElementById('map').style.display = "none";
-            document.getElementById('battle').style.display = "block";
-            gameState = "battle";
+        // 碰撞檢測
+        if(px === 240 && py === 240) {
+            document.getElementById('battle-ui').style.display = "block";
         }
+        
+        saveGame();
     }
 
-    // --- 戰鬥邏輯 ---
+    // --- 戰鬥 ---
     function hit() {
         mHp -= 20;
         document.getElementById('m-hp').innerText = mHp;
         if(mHp <= 0) {
-            alert("獲勝！獲得金幣！");
-            backToMap();
+            alert("獲勝！");
+            document.getElementById('battle-ui').style.display = "none";
+            mHp = 100;
+            document.getElementById('m-hp').innerText = 100;
         }
     }
 
-    function backToMap() {
-        document.getElementById('map').style.display = "block";
-        document.getElementById('battle').style.display = "none";
-        gameState = "map";
-        mHp = 100; // 重置怪物血量
-        document.getElementById('m-hp').innerText = 100;
+    async function saveGame() {
+        await supabase.from('player_stars').upsert({ id: 'player1', x: px, y: py });
     }
 </script>
 </body>
 </html>
+
