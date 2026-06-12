@@ -2,79 +2,88 @@
 <html>
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background: #111; color: white; text-align: center; font-family: sans-serif; }
-        #game-view { position: relative; width: 400px; height: 400px; margin: auto; border: 4px solid #fff; overflow: hidden; background: #333; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; left:0; top:0; transition: 0.1s; }
-        #controls { margin-top: 10px; }
-        .btn { padding: 15px 25px; cursor: pointer; font-size: 18px; margin: 5px; }
-        #battle-ui { position: absolute; top: 0; width: 100%; height: 100%; background: #222; display: none; }
+        body { background: #111; color: white; touch-action: none; overflow: hidden; margin: 0; font-family: sans-serif; }
+        #game-view { width: 100vw; height: 70vh; position: relative; border-bottom: 4px solid #fff; }
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 0; top: 0; border-radius: 5px; }
+        
+        /* 虛擬搖桿樣式 */
+        #joystick-area { width: 150px; height: 150px; border-radius: 50%; border: 2px solid white; position: fixed; bottom: 50px; left: 50px; z-index: 10; }
+        #joystick-knob { width: 60px; height: 60px; background: white; border-radius: 50%; position: absolute; left: 45px; top: 45px; }
+        
+        /* 攻擊按鈕 */
+        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 75px; right: 50px; border: none; color: white; font-size: 20px; z-index: 10; }
     </style>
 </head>
 <body>
 
 <div id="game-view">
     <div id="player"></div>
-    <div id="monster" style="width:40px;height:40px;background:red;position:absolute;left:240px;top:240px;"></div>
-    
-    <div id="battle-ui">
-        <h2>戰鬥中！</h2>
-        <p>怪物 HP: <span id="m-hp">100</span></p>
-        <button class="btn" onclick="hit()">攻擊！⚔️</button>
-    </div>
+    <div id="monster" style="width:40px;height:40px;background:orange;position:absolute;left:240px;top:240px;"></div>
 </div>
 
-<div id="controls">
-    <button class="btn" onclick="move('up')">↑</button><br>
-    <button class="btn" onclick="move('left')">←</button>
-    <button class="btn" onclick="move('right')">→</button><br>
-    <button class="btn" onclick="move('down')">↓</button>
+<div id="joystick-area">
+    <div id="joystick-knob"></div>
 </div>
+<button id="attack-btn" onclick="attack()">⚔️</button>
 
 <script>
+    // 1. 初始化 Supabase
     const supabase = supabase.createClient(
         'https://njxwgiqhlwkybtmbmvto.supabase.co', 
         'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
     );
-
+    
     let px = 0, py = 0;
-    let mHp = 100;
+    const knob = document.getElementById('joystick-knob');
+    const area = document.getElementById('joystick-area');
 
-    // --- 搖桿移動 ---
-    function move(dir) {
-        if(dir === 'up' && py > 0) py -= 40;
-        if(dir === 'down' && py < 360) py += 40;
-        if(dir === 'left' && px > 0) px -= 40;
-        if(dir === 'right' && px < 360) px += 40;
+    // 2. 搖桿拖曳邏輯
+    area.addEventListener('touchmove', (e) => {
+        let touch = e.touches[0];
+        let rect = area.getBoundingClientRect();
+        let x = touch.clientX - rect.left - 30;
+        let y = touch.clientY - rect.top - 30;
         
+        // 限制搖桿範圍
+        knob.style.left = Math.max(0, Math.min(90, x)) + 'px';
+        knob.style.top = Math.max(0, Math.min(90, y)) + 'px';
+
+        // 根據搖桿位置移動玩家
+        if (x < 30) px = Math.max(0, px - 8);
+        if (x > 60) px = Math.min(360, px + 8);
+        if (y < 30) py = Math.max(0, py - 8);
+        if (y > 60) py = Math.min(360, py + 8);
+
         document.getElementById('player').style.left = px + 'px';
         document.getElementById('player').style.top = py + 'px';
+    });
 
-        // 碰撞檢測
-        if(px === 240 && py === 240) {
-            document.getElementById('battle-ui').style.display = "block";
-        }
-        
-        saveGame();
-    }
+    area.addEventListener('touchend', () => {
+        knob.style.left = '45px';
+        knob.style.top = '45px';
+        saveGame(); // 放開搖桿時存檔
+    });
 
-    // --- 戰鬥 ---
-    function hit() {
-        mHp -= 20;
-        document.getElementById('m-hp').innerText = mHp;
-        if(mHp <= 0) {
-            alert("獲勝！");
-            document.getElementById('battle-ui').style.display = "none";
-            mHp = 100;
-            document.getElementById('m-hp').innerText = 100;
+    // 3. 攻擊邏輯
+    function attack() {
+        // 簡單判斷：如果靠近怪物就判定打到
+        let dist = Math.sqrt(Math.pow(px - 240, 2) + Math.pow(py - 240, 2));
+        if(dist < 50) {
+            alert("攻擊怪物！");
         }
     }
 
+    // 4. 雲端存檔
     async function saveGame() {
-        await supabase.from('player_stars').upsert({ id: 'player1', x: px, y: py });
+        const { error } = await supabase
+            .from('player_stars')
+            .upsert({ id: 'player1', x: px, y: py });
+        if (error) console.error("存檔失敗:", error.message);
+        else console.log("雲端同步座標:", px, py);
     }
 </script>
 </body>
 </html>
-
