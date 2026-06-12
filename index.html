@@ -6,71 +6,55 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { 
-            background: #111; color: white; margin: 0; 
-            font-family: sans-serif; overflow: hidden; height: 100vh;
-            touch-action: none; /* 防止 Safari 捲動頁面 */
-            -webkit-user-select: none; user-select: none; 
+            margin: 0; padding: 0; background: #111; color: white;
+            overflow: hidden; height: 100vh;
+            touch-action: none; /* iOS 關鍵：禁止瀏覽器手勢 */
+            -webkit-overflow-scrolling: touch;
         }
         #game-view { width: 100vw; height: 80vh; position: relative; background: #222; border-bottom: 4px solid #fff; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; z-index: 5; }
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; z-index: 5; transition: none; }
         #monster { width: 40px; height: 40px; background: orange; position: absolute; left: 240px; top: 240px; }
-        
         #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; z-index: 100; }
         #joystick-knob { width: 60px; height: 60px; background: rgba(255,255,255,0.8); border-radius: 50%; position: absolute; top: 30px; left: 30px; }
-        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 50px; right: 50px; border: none; color: white; z-index: 100; }
+        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 50px; right: 50px; z-index: 100; }
     </style>
 </head>
 <body>
 
-<div id="game-view">
-    <div id="player"></div>
-    <div id="monster"></div>
-</div>
-
+<div id="game-view"><div id="player"></div><div id="monster"></div></div>
 <div id="joystick-base"><div id="joystick-knob"></div></div>
 <button id="attack-btn" onclick="attack()">攻擊</button>
 
 <script>
-    const supabase = supabase.createClient(
-        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-    );
-    
+    const supabase = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM');
     const player = document.getElementById('player');
     const knob = document.getElementById('joystick-knob');
     const base = document.getElementById('joystick-base');
     
     let px = 50, py = 50;
     let activeTouchId = null;
-    let joystickVector = { x: 0, y: 0 };
 
+    // 初始化與存檔
     async function initGame() {
         const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
-        if (data) {
-            px = data.x; py = data.y;
-            player.style.left = px + 'px'; player.style.top = py + 'px';
-        }
+        if (data) { px = data.x; py = data.y; player.style.left = px + 'px'; player.style.top = py + 'px'; }
     }
-    initGame();
-
     async function saveGame() {
         await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
     }
+    initGame();
 
-    // iOS 搖桿啟動監聽
+    // 觸控監聽
     base.addEventListener('touchstart', (e) => {
         activeTouchId = e.changedTouches[0].identifier;
     }, {passive: false});
 
-    // 關鍵：使用 window 層級監聽移動，確保不丟失手指位置
     window.addEventListener('touchmove', (e) => {
         if (activeTouchId === null) return;
-        
         let touch = Array.from(e.touches).find(t => t.identifier === activeTouchId);
         if (!touch) return;
-        
-        e.preventDefault(); // iOS Safari 必須要這一行，否則會觸發頁面捲動
-        
+        e.preventDefault();
+
         let rect = base.getBoundingClientRect();
         let dx = touch.clientX - (rect.left + 60);
         let dy = touch.clientY - (rect.top + 60);
@@ -80,32 +64,24 @@
         knob.style.left = (30 + Math.cos(angle) * dist) + 'px';
         knob.style.top = (30 + Math.sin(angle) * dist) + 'px';
         
-        joystickVector = { x: Math.cos(angle) * (dist/30) * 8, y: Math.sin(angle) * (dist/30) * 8 };
+        // 直接更新玩家位置 (速度調整)
+        px += Math.cos(angle) * 5;
+        py += Math.sin(angle) * 5;
+        player.style.left = px + 'px';
+        player.style.top = py + 'px';
     }, {passive: false});
 
     window.addEventListener('touchend', (e) => {
         if (activeTouchId !== null && e.changedTouches[0].identifier === activeTouchId) {
             activeTouchId = null;
             knob.style.left = '30px'; knob.style.top = '30px';
-            joystickVector = { x: 0, y: 0 };
             saveGame();
         }
     });
 
-    function gameLoop() {
-        if (joystickVector.x !== 0 || joystickVector.y !== 0) {
-            px += joystickVector.x; 
-            py += joystickVector.y;
-            player.style.left = px + 'px'; 
-            player.style.top = py + 'px';
-        }
-        requestAnimationFrame(gameLoop);
-    }
-    gameLoop();
-
     function attack() {
         let dist = Math.sqrt(Math.pow(px - 240, 2) + Math.pow(py - 240, 2));
-        alert(dist < 80 ? "擊中怪物！" : "太遠了！");
+        alert(dist < 80 ? "擊中！" : "沒打中！");
     }
 </script>
 </body>
