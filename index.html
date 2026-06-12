@@ -6,15 +6,13 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { background: #111; color: white; margin: 0; touch-action: none; font-family: sans-serif; overflow: hidden; height: 100vh; }
-        #game-view { width: 100vw; height: 80vh; position: relative; background: #222; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; }
+        #game-view { width: 100vw; height: 80vh; position: relative; background: #222; border-bottom: 4px solid #fff; }
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; z-index: 5; }
         #monster { width: 40px; height: 40px; background: orange; position: absolute; left: 240px; top: 240px; }
         
-        /* 搖桿樣式 */
-        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; }
+        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; z-index: 10; }
         #joystick-knob { width: 60px; height: 60px; background: rgba(255,255,255,0.8); border-radius: 50%; position: absolute; top: 30px; left: 30px; }
-        
-        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 50px; right: 50px; border: none; color: white; }
+        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 50px; right: 50px; border: none; color: white; z-index: 10; }
     </style>
 </head>
 <body>
@@ -24,68 +22,57 @@
     <div id="monster"></div>
 </div>
 
-<div id="joystick-base">
-    <div id="joystick-knob"></div>
-</div>
-<button id="attack-btn" onclick="attack()">攻擊</button>
+<div id="joystick-base"><div id="joystick-knob"></div></div>
+<button id="attack-btn">攻擊</button>
 
 <script>
-    const supabase = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM');
+    const supabase = supabase.createClient(
+        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+    );
     
     const player = document.getElementById('player');
     const knob = document.getElementById('joystick-knob');
     const base = document.getElementById('joystick-base');
     
     let px = 50, py = 50;
-    let joystickActive = false;
+    let activeTouchId = null;
+    let joystickVector = { x: 0, y: 0 };
 
-    // 搖桿移動邏輯
-    function handleJoystick(e) {
-        let touch = e.touches[0];
-        let rect = base.getBoundingClientRect();
-        let centerX = rect.left + rect.width / 2;
-        let centerY = rect.top + rect.height / 2;
+    async function initGame() {
+        const { data, error } = await supabase
+            .from('player_stars')
+            .select('*')
+            .eq('id', 'player1')
+            .single();
         
-        // 計算偏移
-        let dx = touch.clientX - centerX;
-        let dy = touch.clientY - centerY;
-        let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 30); // 限制搖桿頭移動範圍
-        let angle = Math.atan2(dy, dx);
-        
-        // 更新搖桿頭位置
-        knob.style.left = (30 + Math.cos(angle) * dist) + 'px';
-        knob.style.top = (30 + Math.sin(angle) * dist) + 'px';
-        
-        // 更新角色位置 (乘以倍率)
-        px += Math.cos(angle) * 5;
-        py += Math.sin(angle) * 5;
-        player.style.left = px + 'px';
-        player.style.top = py + 'px';
-    }
-
-    base.addEventListener('touchstart', () => joystickActive = true);
-    document.addEventListener('touchmove', (e) => {
-        if (joystickActive) handleJoystick(e);
-    }, {passive: false});
-    
-    document.addEventListener('touchend', () => {
-        if (joystickActive) {
-            joystickActive = false;
-            knob.style.left = '30px';
-            knob.style.top = '30px';
-            saveGame();
+        if (!error && data) {
+            px = data.x;
+            py = data.y;
+            player.style.left = px + 'px';
+            player.style.top = py + 'px';
         }
-    });
-
-    function attack() {
-        let dist = Math.sqrt(Math.pow(px - 240, 2) + Math.pow(py - 240, 2));
-        alert(dist < 80 ? "擊中怪物！" : "太遠了！");
     }
+    initGame();
 
     async function saveGame() {
-        const { error } = await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
-        if (!error) console.log("座標已同步");
+        await supabase
+            .from('player_stars')
+            .upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
     }
-</script>
-</body>
-</html>
+
+    base.addEventListener('touchstart', (e) => {
+        activeTouchId = e.changedTouches[0].identifier;
+    }, {passive: false});
+
+    window.addEventListener('touchmove', (e) => {
+        if (activeTouchId === null) return;
+        let touch = Array.from(e.touches).find(t => t.identifier === activeTouchId);
+        if (!touch) return;
+        e.preventDefault();
+        
+        let rect = base.getBoundingClientRect();
+        let dx = touch.clientX - (rect.left + 60);
+        let dy = touch.clientY - (rect.top + 60);
+        let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 30);
+        let angle = Math.atan2(dy
