@@ -5,17 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background: #111; color: white; margin: 0; touch-action: none; font-family: sans-serif; overflow: hidden; height: 100vh; }
+        body { 
+            background: #111; color: white; margin: 0; 
+            font-family: sans-serif; overflow: hidden; height: 100vh;
+            touch-action: none; /* 防止 Safari 捲動頁面 */
+            -webkit-user-select: none; user-select: none; 
+        }
         #game-view { width: 100vw; height: 80vh; position: relative; background: #222; border-bottom: 4px solid #fff; }
         #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; z-index: 5; }
         #monster { width: 40px; height: 40px; background: orange; position: absolute; left: 240px; top: 240px; }
         
-        /* 搖桿樣式 */
-        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; z-index: 10; }
+        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; z-index: 100; }
         #joystick-knob { width: 60px; height: 60px; background: rgba(255,255,255,0.8); border-radius: 50%; position: absolute; top: 30px; left: 30px; }
-        
-        /* 攻擊按鈕樣式 */
-        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 50px; right: 50px; font-size: 20px; border: none; color: white; z-index: 10; cursor: pointer; }
+        #attack-btn { width: 100px; height: 100px; border-radius: 50%; background: red; position: fixed; bottom: 50px; right: 50px; border: none; color: white; z-index: 100; }
     </style>
 </head>
 <body>
@@ -29,7 +31,6 @@
 <button id="attack-btn" onclick="attack()">攻擊</button>
 
 <script>
-    // 1. 初始化 Supabase 客戶端
     const supabase = supabase.createClient(
         'https://njxwgiqhlwkybtmbmvto.supabase.co', 
         'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
@@ -43,51 +44,32 @@
     let activeTouchId = null;
     let joystickVector = { x: 0, y: 0 };
 
-    // 2. 初始化：從資料庫讀取上次存檔
     async function initGame() {
-        try {
-            const { data, error } = await supabase
-                .from('player_stars')
-                .select('*')
-                .eq('id', 'player1')
-                .single();
-            
-            if (!error && data) {
-                px = data.x;
-                py = data.y;
-                player.style.left = px + 'px';
-                player.style.top = py + 'px';
-                console.log("成功載入存檔:", px, py);
-            }
-        } catch (e) {
-            console.error("載入存檔時發生錯誤:", e);
+        const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
+        if (data) {
+            px = data.x; py = data.y;
+            player.style.left = px + 'px'; player.style.top = py + 'px';
         }
     }
     initGame();
 
-    // 3. 雲端同步函數 (存檔)
     async function saveGame() {
-        const { error } = await supabase
-            .from('player_stars')
-            .upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
-        
-        if (error) {
-            console.error("存檔失敗:", error.message);
-        } else {
-            console.log("座標已同步至雲端:", Math.floor(px), Math.floor(py));
-        }
+        await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
     }
 
-    // 4. 搖桿觸控事件
+    // iOS 搖桿啟動監聽
     base.addEventListener('touchstart', (e) => {
         activeTouchId = e.changedTouches[0].identifier;
     }, {passive: false});
 
+    // 關鍵：使用 window 層級監聽移動，確保不丟失手指位置
     window.addEventListener('touchmove', (e) => {
         if (activeTouchId === null) return;
+        
         let touch = Array.from(e.touches).find(t => t.identifier === activeTouchId);
         if (!touch) return;
-        e.preventDefault();
+        
+        e.preventDefault(); // iOS Safari 必須要這一行，否則會觸發頁面捲動
         
         let rect = base.getBoundingClientRect();
         let dx = touch.clientX - (rect.left + 60);
@@ -97,21 +79,19 @@
         
         knob.style.left = (30 + Math.cos(angle) * dist) + 'px';
         knob.style.top = (30 + Math.sin(angle) * dist) + 'px';
+        
         joystickVector = { x: Math.cos(angle) * (dist/30) * 8, y: Math.sin(angle) * (dist/30) * 8 };
     }, {passive: false});
 
     window.addEventListener('touchend', (e) => {
         if (activeTouchId !== null && e.changedTouches[0].identifier === activeTouchId) {
             activeTouchId = null;
-            knob.style.left = '30px'; 
-            knob.style.top = '30px';
+            knob.style.left = '30px'; knob.style.top = '30px';
             joystickVector = { x: 0, y: 0 };
-            // 觸控結束時執行存檔
             saveGame();
         }
     });
 
-    // 5. 遊戲動畫循環
     function gameLoop() {
         if (joystickVector.x !== 0 || joystickVector.y !== 0) {
             px += joystickVector.x; 
@@ -123,14 +103,9 @@
     }
     gameLoop();
 
-    // 6. 攻擊邏輯
     function attack() {
         let dist = Math.sqrt(Math.pow(px - 240, 2) + Math.pow(py - 240, 2));
-        if(dist < 80) {
-            alert("擊中怪物！");
-        } else {
-            alert("太遠了，打不到！");
-        }
+        alert(dist < 80 ? "擊中怪物！" : "太遠了！");
     }
 </script>
 </body>
