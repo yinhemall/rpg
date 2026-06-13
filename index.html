@@ -1,50 +1,147 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; background: #111; touch-action: none; overflow: hidden; height: 100vh; }
-        #game-view { width: 100vw; height: 70vh; position: relative; background: #222; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; }
-        /* 增加觸控區大小，確保 iOS 容易捕捉 */
-        #joystick-base { width: 150px; height: 150px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 30px; left: 30px; }
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; }
+        canvas { display: block; }
     </style>
 </head>
 <body>
 
-<div id="game-view"><div id="player"></div></div>
-<div id="joystick-base"></div>
-
 <script>
-    const supabase = supabase.createClient(
-        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-    );
-    
-    const player = document.getElementById('player');
-    const base = document.getElementById('joystick-base');
-    let px = 50, py = 50;
+// --- 1. Supabase 設定 (保留你的設定) ---
+const supabase = supabase.createClient(
+    'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+    'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+);
 
-    // 關鍵修正：在觸控開始時就處理位置，且不使用 e.preventDefault() 以外的干擾
-    function moveAt(pageX, pageY) {
-        px = pageX - 20;
-        py = pageY - 20;
-        player.style.left = px + 'px';
-        player.style.top = py + 'px';
+// --- 2. Phaser 遊戲邏輯 ---
+class MyGame extends Phaser.Scene {
+    constructor() {
+        super('MyGame');
+        this.player = null;
+        this.joystickBase = null;
+        this.joystickKnob = null;
+        this.isMoving = false;
+        this.moveX = 0;
+        this.moveY = 0;
     }
 
-    base.addEventListener('touchmove', (e) => {
-        // 確保手指移動時位置持續更新
-        let touch = e.touches[0];
-        moveAt(touch.clientX, touch.clientY);
-    }, {passive: false});
+    preload() {
+        // 這裡可以載入圖片，現在先用程式畫簡單圖形
+    }
 
-    base.addEventListener('touchend', async () => {
-        // 只有在手指離開時才執行網路請求，避免移動中卡頓
-        await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
-    });
+    async create() {
+        // A. 建立玩家 (青色方塊)
+        this.player = this.add.rectangle(100, 100, 40, 40, 0x00ffff);
+        this.physics.add.existing(this.player);
+
+        // B. 建立怪物 (橘色方塊)
+        this.monster = this.add.rectangle(300, 300, 40, 40, 0xffa500);
+
+        // C. 從 Supabase 讀取存檔
+        const { data, error } = await supabase
+            .from('player_stars')
+            .select('*')
+            .eq('id', 'player1')
+            .single();
+        
+        if (data) {
+            this.player.setPosition(data.x, data.y);
+            console.log("雲端存檔載入成功:", data.x, data.y);
+        }
+
+        // D. 建立虛擬搖桿 (視覺部分)
+        this.joystickBase = this.add.circle(100, 550, 60, 0xffffff, 0.2).setScrollFactor(0);
+        this.joystickKnob = this.add.circle(100, 550, 30, 0xffffff, 0.5).setScrollFactor(0);
+
+        // E. 觸控事件監聽 (Phaser 的觸控在 iOS 極度穩定)
+        this.input.on('pointerdown', (pointer) => {
+            if (pointer.x < 200) { // 點擊左半邊啟動搖桿
+                this.isMoving = true;
+                this.updateJoystick(pointer);
+            }
+        });
+
+        this.input.on('pointermove', (pointer) => {
+            if (this.isMoving) {
+                this.updateJoystick(pointer);
+            }
+        });
+
+        this.input.on('pointerup', () => {
+            this.isMoving = false;
+            this.joystickKnob.setPosition(100, 550);
+            this.moveX = 0;
+            this.moveY = 0;
+            // 停止移動時執行存檔
+            this.saveGame();
+        });
+
+        // 建立攻擊按鈕
+        const attackBtn = this.add.circle(700, 550, 50, 0xff0000, 0.8).setInteractive();
+        attackBtn.on('pointerdown', () => this.handleAttack());
+        this.add.text(675, 540, '攻擊', { fontSize: '20px', color: '#fff' });
+    }
+
+    updateJoystick(pointer) {
+        const dist = Phaser.Math.Distance.Between(100, 550, pointer.x, pointer.y);
+        const angle = Phaser.Math.Angle.Between(100, 550, pointer.x, pointer.y);
+        const maxDist = 40;
+        const finalDist = Math.min(dist, maxDist);
+
+        this.joystickKnob.x = 100 + Math.cos(angle) * finalDist;
+        this.joystickKnob.y = 550 + Math.sin(angle) * finalDist;
+
+        // 計算移動向量
+        this.moveX = Math.cos(angle) * (finalDist / maxDist) * 5;
+        this.moveY = Math.sin(angle) * (finalDist / maxDist) * 5;
+    }
+
+    update() {
+        // 每幀更新位置 (Loop)
+        if (this.isMoving) {
+            this.player.x += this.moveX;
+            this.player.y += this.moveY;
+        }
+    }
+
+    async saveGame() {
+        await supabase
+            .from('player_stars')
+            .upsert({ id: 'player1', x: Math.floor(this.player.x), y: Math.floor(this.player.y) });
+        console.log("位置已儲存至雲端");
+    }
+
+    handleAttack() {
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.monster.x, this.monster.y);
+        alert(dist < 100 ? "擊中怪物！" : "太遠了！");
+    }
+}
+
+// --- 3. 遊戲啟動設定 ---
+const config = {
+    type: Phaser.AUTO, // 自動選擇 WebGL 或 Canvas
+    width: 800,
+    height: 600,
+    parent: 'game-container',
+    physics: {
+        default: 'arcade',
+        arcade: { debug: false }
+    },
+    scene: MyGame,
+    scale: {
+        mode: Phaser.Scale.FIT, // 自動縮放以適應螢幕
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    }
+};
+
+const game = new Phaser.Game(config);
 </script>
+
 </body>
 </html>
