@@ -7,141 +7,101 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { margin: 0; background: #000; overflow: hidden; touch-action: none; }
-        canvas { display: block; }
+        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
 <body>
 
+<div id="game-container"></div>
+
 <script>
-// --- 1. Supabase 設定 (保留你的設定) ---
+// --- 1. Supabase 初始化 ---
 const supabase = supabase.createClient(
     'https://njxwgiqhlwkybtmbmvto.supabase.co', 
     'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
 );
 
-// --- 2. Phaser 遊戲邏輯 ---
+// --- 2. 遊戲場景設定 ---
 class MyGame extends Phaser.Scene {
     constructor() {
         super('MyGame');
-        this.player = null;
-        this.joystickBase = null;
-        this.joystickKnob = null;
-        this.isMoving = false;
-        this.moveX = 0;
-        this.moveY = 0;
-    }
-
-    preload() {
-        // 這裡可以載入圖片，現在先用程式畫簡單圖形
     }
 
     async create() {
-        // A. 建立玩家 (青色方塊)
-        this.player = this.add.rectangle(100, 100, 40, 40, 0x00ffff);
-        this.physics.add.existing(this.player);
+        // 設定背景色
+        this.cameras.main.setBackgroundColor('#222');
 
-        // B. 建立怪物 (橘色方塊)
+        // 建立角色與怪物
+        this.player = this.add.rectangle(100, 100, 40, 40, 0x00ffff);
         this.monster = this.add.rectangle(300, 300, 40, 40, 0xffa500);
 
-        // C. 從 Supabase 讀取存檔
-        const { data, error } = await supabase
-            .from('player_stars')
-            .select('*')
-            .eq('id', 'player1')
-            .single();
-        
+        // 初始化：讀取雲端存檔
+        const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
         if (data) {
             this.player.setPosition(data.x, data.y);
-            console.log("雲端存檔載入成功:", data.x, data.y);
         }
 
-        // D. 建立虛擬搖桿 (視覺部分)
-        this.joystickBase = this.add.circle(100, 550, 60, 0xffffff, 0.2).setScrollFactor(0);
-        this.joystickKnob = this.add.circle(100, 550, 30, 0xffffff, 0.5).setScrollFactor(0);
+        // 虛擬搖桿視覺
+        this.joystickBase = this.add.circle(150, 450, 60, 0xffffff, 0.2);
+        this.joystickKnob = this.add.circle(150, 450, 30, 0xffffff, 0.5);
 
-        // E. 觸控事件監聽 (Phaser 的觸控在 iOS 極度穩定)
-        this.input.on('pointerdown', (pointer) => {
-            if (pointer.x < 200) { // 點擊左半邊啟動搖桿
-                this.isMoving = true;
-                this.updateJoystick(pointer);
-            }
+        // 搖桿變數
+        this.isMoving = false;
+        this.moveVector = { x: 0, y: 0 };
+
+        // 觸控監聽
+        this.input.on('pointerdown', (p) => { if(p.x < 300) this.isMoving = true; });
+        this.input.on('pointermove', (p) => {
+            if (!this.isMoving) return;
+            let dx = p.x - 150;
+            let dy = p.y - 450;
+            let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
+            let angle = Math.atan2(dy, dx);
+            this.joystickKnob.setPosition(150 + Math.cos(angle)*dist, 450 + Math.sin(angle)*dist);
+            this.moveVector = { x: Math.cos(angle) * 5, y: Math.sin(angle) * 5 };
         });
-
-        this.input.on('pointermove', (pointer) => {
-            if (this.isMoving) {
-                this.updateJoystick(pointer);
-            }
-        });
-
         this.input.on('pointerup', () => {
             this.isMoving = false;
-            this.joystickKnob.setPosition(100, 550);
-            this.moveX = 0;
-            this.moveY = 0;
-            // 停止移動時執行存檔
+            this.joystickKnob.setPosition(150, 450);
+            this.moveVector = { x: 0, y: 0 };
             this.saveGame();
         });
 
-        // 建立攻擊按鈕
-        const attackBtn = this.add.circle(700, 550, 50, 0xff0000, 0.8).setInteractive();
-        attackBtn.on('pointerdown', () => this.handleAttack());
-        this.add.text(675, 540, '攻擊', { fontSize: '20px', color: '#fff' });
-    }
-
-    updateJoystick(pointer) {
-        const dist = Phaser.Math.Distance.Between(100, 550, pointer.x, pointer.y);
-        const angle = Phaser.Math.Angle.Between(100, 550, pointer.x, pointer.y);
-        const maxDist = 40;
-        const finalDist = Math.min(dist, maxDist);
-
-        this.joystickKnob.x = 100 + Math.cos(angle) * finalDist;
-        this.joystickKnob.y = 550 + Math.sin(angle) * finalDist;
-
-        // 計算移動向量
-        this.moveX = Math.cos(angle) * (finalDist / maxDist) * 5;
-        this.moveY = Math.sin(angle) * (finalDist / maxDist) * 5;
+        // 攻擊按鈕
+        const btn = this.add.circle(650, 450, 50, 0xff0000, 0.8).setInteractive();
+        btn.on('pointerdown', () => {
+            let d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.monster.x, this.monster.y);
+            alert(d < 100 ? "擊中！" : "太遠了！");
+        });
     }
 
     update() {
-        // 每幀更新位置 (Loop)
         if (this.isMoving) {
-            this.player.x += this.moveX;
-            this.player.y += this.moveY;
+            this.player.x += this.moveVector.x;
+            this.player.y += this.moveVector.y;
         }
     }
 
     async saveGame() {
-        await supabase
-            .from('player_stars')
-            .upsert({ id: 'player1', x: Math.floor(this.player.x), y: Math.floor(this.player.y) });
-        console.log("位置已儲存至雲端");
-    }
-
-    handleAttack() {
-        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.monster.x, this.monster.y);
-        alert(dist < 100 ? "擊中怪物！" : "太遠了！");
+        await supabase.from('player_stars').upsert({ 
+            id: 'player1', 
+            x: Math.floor(this.player.x), 
+            y: Math.floor(this.player.y) 
+        });
     }
 }
 
-// --- 3. 遊戲啟動設定 ---
+// --- 3. 遊戲啟動配置 ---
 const config = {
-    type: Phaser.AUTO, // 自動選擇 WebGL 或 Canvas
+    type: Phaser.WEBGL,
+    parent: 'game-container',
     width: 800,
     height: 600,
-    parent: 'game-container',
-    physics: {
-        default: 'arcade',
-        arcade: { debug: false }
-    },
     scene: MyGame,
-    scale: {
-        mode: Phaser.Scale.FIT, // 自動縮放以適應螢幕
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    }
+    scale: { mode: Phaser.Scale.FIT }
 };
 
-const game = new Phaser.Game(config);
+new Phaser.Game(config);
 </script>
-
 </body>
 </html>
