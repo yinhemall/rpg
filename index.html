@@ -4,45 +4,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style> body { margin: 0; background-color: #222; overflow: hidden; } </style>
 </head>
 <body>
 <script>
-const supabase = supabase.createClient(
-    'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-    'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-);
-
 const config = {
     type: Phaser.AUTO,
     width: 800, height: 600,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: {
-        preload: function() {},
-        create: async function() {
-            // 1. 玩家與搖桿
-            this.player = this.add.rectangle(400, 300, 40, 40, 0x00ffff);
-            this.joystick = this.add.circle(150, 450, 60, 0xffffff, 0.3).setInteractive();
-            this.add.text(120, 440, '搖桿', { fontSize: '20px' });
-
-            // 2. 讀取資料
-            const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
-            if (data) this.player.setPosition(data.x, data.y);
-
-            // 3. 移動邏輯
-            this.input.on('pointermove', (p) => {
-                if (p.isDown && Phaser.Geom.Circle.Contains(this.joystick.getBounds(), p.x, p.y)) {
-                    this.player.x = p.x;
-                    this.player.y = p.y;
-                }
-            });
-
-            // 4. 存檔邏輯
-            this.input.on('pointerup', async () => {
-                await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(this.player.x), y: Math.floor(this.player.y) });
-                console.log("存檔成功");
-            });
+        create: function() {
+            // 背景
+            this.cameras.main.setBackgroundColor('#2d2d2d');
+            
+            // 畫一個簡單的圓形，這絕對不會黑屏
+            this.player = this.add.circle(400, 300, 50, 0xffff00);
+            
+            this.add.text(10, 10, '若看到黃圓形，代表渲染正常', { fontSize: '20px', fill: '#fff' });
+            
+            console.log("繪圖測試完成");
         }
     }
 };
