@@ -2,49 +2,67 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Minecraft RPG 遊戲</title>
+    <title>Minecraft Cyber RPG</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #050505; font-family: 'Segoe UI', Roboto, sans-serif; }
         canvas { width: 100%; height: 100vh; display: block; }
-        #ui { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: #222; color: white; padding: 20px; border-radius: 10px; z-index: 10; text-align: center; }
-        input { display: block; margin: 10px auto; color: black; padding: 5px; }
-        button { cursor: pointer; padding: 10px 20px; margin: 5px; background: #555; color: white; border: none; border-radius: 5px; }
-        /* 虛擬搖桿樣式 */
-        #joystick { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; border: 2px solid white; z-index: 20; touch-action: none; }
+        
+        #ui { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: rgba(20, 25, 40, 0.7); backdrop-filter: blur(15px);
+            padding: 30px; border-radius: 20px; border: 1px solid rgba(0, 255, 255, 0.3);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.2); z-index: 100; text-align: center;
+        }
+        h3 { color: #0ff; text-transform: uppercase; letter-spacing: 3px; margin-bottom: 20px; text-shadow: 0 0 10px #0ff; }
+        input { 
+            display: block; margin: 15px auto; background: rgba(0,0,0,0.3); border: 1px solid #444;
+            padding: 10px; color: #fff; border-radius: 8px; width: 220px; outline: none;
+        }
+        button { 
+            cursor: pointer; padding: 12px 25px; margin: 10px; background: transparent;
+            color: #0ff; border: 1px solid #0ff; border-radius: 8px; font-weight: bold;
+            text-transform: uppercase; transition: all 0.3s;
+        }
+        button:hover { background: #0ff; color: #000; box-shadow: 0 0 20px #0ff; }
+
+        #joystick { 
+            position: absolute; bottom: 60px; left: 60px; width: 120px; height: 120px; 
+            background: rgba(0, 255, 255, 0.1); border: 2px solid #0ff; border-radius: 50%; 
+            z-index: 20; touch-action: none; display: none;
+        }
         #stick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: white; border-radius: 50%; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h3>遊戲帳號管理</h3>
-        <input type="email" id="email" placeholder="Email">
-        <input type="password" id="password" placeholder="密碼">
-        <button onclick="handleAction('signIn')">登入</button>
-        <button onclick="handleAction('signUp')">註冊</button>
+        <h3>System Login</h3>
+        <input type="email" id="email" placeholder="USER ID">
+        <input type="password" id="password" placeholder="PASSWORD">
+        <button onclick="handleAction('signIn')">Enter</button>
+        <button onclick="handleAction('signUp')">Register</button>
     </div>
 
-    <div id="joystick" style="display:none;"><div id="stick"></div></div>
+    <div id="joystick"><div id="stick"></div></div>
     <canvas id="renderCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
+        scene.clearColor = new BABYLON.Color4(0.05, 0.05, 0.1, 1);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
 
         let player, moveX = 0, moveZ = 0;
-        const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
+        const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
 
-        // 道路地面
         const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 200, height: 200}, scene);
         const mat = new BABYLON.StandardMaterial("road", scene);
-        mat.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2); // 深灰路面
+        mat.diffuseColor = new BABYLON.Color3(0.1, 0.1, 0.1);
         ground.material = mat;
 
         async function handleAction(type) {
@@ -52,22 +70,21 @@
             const password = document.getElementById('password').value;
             let res = type === 'signUp' ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
             if (!res.error) {
-                document.getElementById('ui').style.display = 'none';
-                document.getElementById('joystick').style.display = 'block';
+                document.getElementById('ui').style.display = 'none'; // 隱藏登入介面
+                document.getElementById('joystick').style.display = 'block'; // 顯示搖桿
                 startGame();
-            } else { alert("錯誤: " + res.error.message); }
+            } else { alert("Error: " + res.error.message); }
         }
 
         function startGame() {
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
-                player.position = new BABYLON.Vector3(0, 0, 0); // 貼地
+                player.position = new BABYLON.Vector3(0, 0, 0);
                 camera.lockedTarget = player;
             });
         }
 
-        // 虛擬搖桿邏輯
         const joystick = document.getElementById('joystick');
         joystick.addEventListener('touchmove', (e) => {
             const touch = e.touches[0];
@@ -76,12 +93,15 @@
             moveZ = -(touch.clientY - rect.top - 60) / 60;
             document.getElementById('stick').style.transform = `translate(${moveX*30}px, ${moveZ*-30}px)`;
         });
-        joystick.addEventListener('touchend', () => { moveX = 0; moveZ = 0; document.getElementById('stick').style.transform = `translate(0px, 0px)`; });
+        joystick.addEventListener('touchend', () => { 
+            moveX = 0; moveZ = 0; 
+            document.getElementById('stick').style.transform = `translate(0px, 0px)`; 
+        });
 
         scene.onBeforeRenderObservable.add(() => {
             if (player) {
-                player.position.x += moveX * 0.2;
-                player.position.z += moveZ * 0.2;
+                player.position.x += moveX * 0.3;
+                player.position.z += moveZ * 0.3;
             }
         });
 
