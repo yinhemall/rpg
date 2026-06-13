@@ -1,31 +1,91 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Minecraft RPG 遊戲</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
+        canvas { width: 100%; height: 100vh; display: block; }
+        #ui { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: #222; color: white; padding: 20px; border-radius: 10px; z-index: 10; text-align: center; }
+        input { display: block; margin: 10px auto; color: black; padding: 5px; }
+        button { cursor: pointer; padding: 10px 20px; margin: 5px; background: #555; color: white; border: none; border-radius: 5px; }
+        #debug { position: absolute; top: 10px; left: 10px; color: red; z-index: 100; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h3>遊戲帳號管理</h3>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="密碼">
+        <input type="text" id="nickname" placeholder="遊戲暱稱">
+        <button onclick="handleAction('signIn')">登入</button>
+        <button onclick="handleAction('signUp')">註冊</button>
+    </div>
+
+    <div id="debug"></div>
+    <canvas id="renderCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+        const scene = new BABYLON.Scene(engine);
+        const debugDiv = document.getElementById("debug");
+
+        const sb = supabase.createClient(
+            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
+            { auth: { persistSession: false } }
+        );
+
+        let player; 
+
+        async function handleAction(type) {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const nickname = document.getElementById('nickname').value;
+
+            let res;
+            if (type === 'signUp') {
+                res = await sb.auth.signUp({ email, password });
+                if (!res.error && res.data.user) {
+                    await sb.from('player_stars').insert([{ user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 }]);
+                    alert("註冊成功！");
+                }
+            } else {
+                res = await sb.auth.signInWithPassword({ email, password });
+                if (!res.error) {
+                    document.getElementById('ui').style.display = 'none';
+                    startGame();
+                }
+            }
+            if (res.error) alert("錯誤: " + res.error.message);
+        }
+
         function startGame() {
-            // 隱藏 UI
-            document.getElementById('ui').style.display = 'none';
-
-            // 1. 建立除錯訊息框 (如果網頁有問題，你會直接在螢幕上看到原因)
-            const debugText = document.createElement("div");
-            debugText.style.position = "absolute";
-            debugText.style.top = "10px";
-            debugText.style.color = "red";
-            debugText.style.zIndex = "100";
-            document.body.appendChild(debugText);
-
-            // 2. 載入模型 (將原本的 "./" 改為空字串，確保讀取根目錄)
-            BABYLON.SceneLoader.ImportMesh("", "", "island.glb", scene, (meshes) => {
-                debugText.innerText = "模型載入成功！";
-                
-                // 建立角色
+            debugDiv.innerText = "正在載入 island.glb...";
+            
+            BABYLON.SceneLoader.ImportMesh("", "./", "island.glb", scene, (meshes) => {
+                debugDiv.innerText = "模型載入成功！";
                 player = BABYLON.MeshBuilder.CreateBox("player", {size: 1}, scene);
                 player.position = new BABYLON.Vector3(0, 5, 0);
                 
-                // 設定跟隨相機
                 const camera = new BABYLON.FollowCamera("followCam", player.position.add(new BABYLON.Vector3(0, 5, -10)), scene);
                 camera.lockedTarget = player;
                 camera.radius = 15;
                 camera.heightOffset = 5;
                 scene.activeCamera = camera;
             }, null, (scene, message) => {
-                // 如果載入失敗，畫面會顯示錯誤訊息
-                debugText.innerText = "載入失敗: " + message;
+                debugDiv.innerText = "載入失敗: " + message;
+                console.error(message);
             });
         }
+
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        engine.runRenderLoop(() => { scene.render(); });
+        window.addEventListener("resize", () => engine.resize());
+    </script>
+</body>
+</html>
