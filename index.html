@@ -1,27 +1,32 @@
 <script>
+window.onload = function() {
+    // 確保這些變數在 DOM 載入後才宣告
     const canvas = document.getElementById("renderCanvas");
+    if (!canvas) { console.error("找不到 renderCanvas!"); return; }
+
     const engine = new BABYLON.Engine(canvas, true);
     const scene = new BABYLON.Scene(engine);
     const uiGame = document.getElementById('ui-game');
     
-    // 徹底清除所有儲存紀錄
     localStorage.clear();
     sessionStorage.clear();
 
-    // 關鍵：將 auth 配置設為最嚴格模式
+    // 確認 supabase 是否已載入
+    if (typeof supabase === 'undefined') {
+        alert("Supabase SDK 未載入，請檢查網路連線或 CDN 連結");
+        return;
+    }
+
     const sbClient = supabase.createClient(
         'https://njxwgiqhlwkybtmbmvto.supabase.co', 
         'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
         { 
-            auth: { 
-                persistSession: false,
-                autoRefreshToken: false,
-                detectSessionInUrl: false
-            } 
+            auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } 
         }
     );
 
-    async function handleAuth(type) {
+    // 必須把 handleAuth 暴露到全域，才能給 HTML 裡的按鈕使用
+    window.handleAuth = async function(type) {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const nickname = document.getElementById('nickname').value;
@@ -30,7 +35,6 @@
         if (type === 'signUp') {
             res = await sbClient.auth.signUp({ email, password });
             if (!res.error && res.data.user) {
-                // 註冊後寫入暱稱
                 await sbClient.from('player_stars').insert([{ 
                     user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 
                 }]);
@@ -40,13 +44,13 @@
         }
 
         if (res.error) {
-            alert("登入/註冊錯誤: " + res.error.message);
+            alert("錯誤: " + res.error.message);
         } else {
             document.getElementById('ui-auth').style.display = 'none';
             uiGame.style.display = 'block';
             initGame(res.data.user.id);
         }
-    }
+    };
 
     function initGame(userId) {
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
@@ -83,4 +87,5 @@
         });
         engine.runRenderLoop(() => scene.render());
     }
+};
 </script>
