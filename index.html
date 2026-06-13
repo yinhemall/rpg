@@ -2,48 +2,56 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Game</title>
+    <title>My Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; background: #222; }
-        #debug { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.8); padding: 10px; font-family: monospace; z-index: 999; }
+        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
+        #ui { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; font-family: monospace; z-index: 999; }
     </style>
 </head>
 <body>
-    <div id="debug">啟動中...</div>
-    <canvas id="renderCanvas" style="width: 100%; height: 100vh; display: block;"></canvas>
+    <div id="ui">搖桿已啟動，移動看看！</div>
+    <canvas id="renderCanvas"></canvas>
     <script>
-        const debug = document.getElementById('debug');
+        const ui = document.getElementById('ui');
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+        const scene = new BABYLON.Scene(engine);
         
-        try {
-            // 1. 初始化 Babylon
-            const canvas = document.getElementById("renderCanvas");
-            const engine = new BABYLON.Engine(canvas, true);
-            const scene = new BABYLON.Scene(engine);
-            new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
-            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        // 攝影機與光源
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, false);
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-            // 2. 正確初始化 Supabase (使用不同的變數名稱 sbClient 以避免命名衝突)
-            debug.innerText = "正在初始化 Supabase...";
-            const sbClient = supabase.createClient(
-                'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-                'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-            );
-            
-            // 3. 載入模型
-            debug.innerText = "Supabase 初始化成功，載入模型...";
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                debug.innerText = "成功！開始遊戲";
-                engine.runRenderLoop(() => scene.render());
-            }, null, (s, m) => {
-                debug.innerText = "模型載入失敗: " + m;
-            });
-            
-        } catch (e) {
-            debug.innerText = "程式錯誤: " + e.message;
-        }
+        // 初始化 Supabase
+        const sbClient = supabase.createClient(
+            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+            'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+        );
+
+        // 加入虛擬搖桿
+        const joystick = new BABYLON.VirtualJoystick(true);
+        let player = null;
+
+        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+            player = meshes[0];
+        });
+
+        // 核心迴圈：處理移動與存檔
+        scene.registerBeforeRender(() => {
+            if (player && joystick.pressed) {
+                player.position.x += joystick.deltaPosition.x * 0.05;
+                player.position.z += joystick.deltaPosition.y * 0.05;
+
+                // 寫入資料庫
+                sbClient.from('player_stars').upsert({ id: 'player1', x: player.position.x, z: player.position.z })
+                .then(res => { if(res.error) ui.innerText = "存檔失敗: " + res.error.message; });
+            }
+        });
+
+        engine.runRenderLoop(() => scene.render());
     </script>
 </body>
 </html>
