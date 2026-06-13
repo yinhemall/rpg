@@ -1,44 +1,26 @@
 <script>
-window.onload = function() {
-    // 確保這些變數在 DOM 載入後才宣告
+    // 1. 初始化引擎與場景 (先建立環境，不依賴任何外部變數)
     const canvas = document.getElementById("renderCanvas");
-    if (!canvas) { console.error("找不到 renderCanvas!"); return; }
-
     const engine = new BABYLON.Engine(canvas, true);
     const scene = new BABYLON.Scene(engine);
-    const uiGame = document.getElementById('ui-game');
     
-    localStorage.clear();
-    sessionStorage.clear();
-
-    // 確認 supabase 是否已載入
-    if (typeof supabase === 'undefined') {
-        alert("Supabase SDK 未載入，請檢查網路連線或 CDN 連結");
-        return;
-    }
-
-    const sbClient = supabase.createClient(
-        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
-        { 
-            auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } 
-        }
-    );
-
-    // 必須把 handleAuth 暴露到全域，才能給 HTML 裡的按鈕使用
-    window.handleAuth = async function(type) {
+    // 2. 登入處理函數 (直接定義在全域，保證 HTML 按鈕找得到)
+    async function handleAuth(type) {
         const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
         const nickname = document.getElementById('nickname').value;
 
+        // 初始化 Supabase
+        const sbClient = supabase.createClient(
+            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
+            { auth: { persistSession: false } }
+        );
+
         let res;
         if (type === 'signUp') {
             res = await sbClient.auth.signUp({ email, password });
-            if (!res.error && res.data.user) {
-                await sbClient.from('player_stars').insert([{ 
-                    user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 
-                }]);
-            }
+            if (!res.error) await sbClient.from('player_stars').insert([{ user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 }]);
         } else {
             res = await sbClient.auth.signInWithPassword({ email, password });
         }
@@ -47,45 +29,19 @@ window.onload = function() {
             alert("錯誤: " + res.error.message);
         } else {
             document.getElementById('ui-auth').style.display = 'none';
-            uiGame.style.display = 'block';
-            initGame(res.data.user.id);
+            document.getElementById('ui-game').style.display = 'block';
+            initGame();
         }
-    };
+    }
 
-    function initGame(userId) {
+    // 3. 遊戲初始化
+    function initGame() {
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
-
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, ps, sk, animationGroups) => {
-            let player = meshes[0];
-            const idleAnim = scene.getAnimationGroupByName("still_test");
-            const walkAnim = scene.getAnimationGroupByName("walking_test");
-            if (idleAnim) idleAnim.start(true);
-
-            let isWalking = false;
-            const joystick = new BABYLON.VirtualJoystick(true);
-
-            scene.registerBeforeRender(() => {
-                if (player && joystick.pressed) {
-                    player.position.x += joystick.deltaPosition.x * 0.1;
-                    player.position.z += joystick.deltaPosition.y * 0.1;
-                    player.lookAt(player.position.add(new BABYLON.Vector3(joystick.deltaPosition.x, 0, joystick.deltaPosition.y)));
-                    if (!isWalking) {
-                        if (idleAnim) idleAnim.stop();
-                        if (walkAnim) walkAnim.start(true);
-                        isWalking = true;
-                    }
-                } else if (isWalking) {
-                    if (walkAnim) walkAnim.stop();
-                    if (idleAnim) idleAnim.start(true);
-                    isWalking = false;
-                }
-            });
-            uiGame.innerText = "遊戲運行中";
-        });
+        
+        // 渲染循環
         engine.runRenderLoop(() => scene.render());
     }
-};
 </script>
