@@ -1,21 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; background: #111; color: white; overflow: hidden; height: 100vh; touch-action: none; }
+        body { margin: 0; background: #111; touch-action: none; overflow: hidden; height: 100vh; }
         #game-view { width: 100vw; height: 70vh; position: relative; background: #222; }
-        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; }
-        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; }
-        #joystick-knob { width: 60px; height: 60px; background: white; border-radius: 50%; position: absolute; top: 30px; left: 30px; }
+        #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; }
+        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.3); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; }
     </style>
 </head>
 <body>
 
 <div id="game-view"><div id="player"></div></div>
-<div id="joystick-base"><div id="joystick-knob"></div></div>
+<div id="joystick-base"></div>
 
 <script>
     const supabase = supabase.createClient(
@@ -25,26 +24,14 @@
     
     const player = document.getElementById('player');
     const base = document.getElementById('joystick-base');
-    const knob = document.getElementById('joystick-knob');
-    
     let px = 50, py = 50;
-    let isMoving = false;
 
-    // 1. 移動邏輯 (直接操作 DOM，不等待伺服器)
-    base.addEventListener('touchstart', (e) => { isMoving = true; }, {passive: false});
-    
-    window.addEventListener('touchmove', (e) => {
-        if (!isMoving) return;
+    // 直接綁定在搖桿上，避免全域干擾
+    base.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        
         let touch = e.touches[0];
-        let rect = base.getBoundingClientRect();
         
-        // 算出搖桿中心
-        let cx = rect.left + 60;
-        let cy = rect.top + 60;
-        
-        // 根據手指位置移動 player
+        // 根據手指中心位置移動角色
         px = touch.clientX - 20;
         py = touch.clientY - 20;
         
@@ -52,17 +39,10 @@
         player.style.top = py + 'px';
     }, {passive: false});
 
-    window.addEventListener('touchend', () => {
-        isMoving = false;
-        // 2. 存檔邏輯放在最後，不影響移動體驗
-        saveGame();
+    base.addEventListener('touchend', async () => {
+        // 結束時存檔
+        await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
     });
-
-    async function saveGame() {
-        try {
-            await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
-        } catch(e) {}
-    }
 </script>
 </body>
 </html>
