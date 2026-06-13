@@ -8,18 +8,17 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #debug { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); z-index: 100; pointer-events: none; }
+        #debug { position: absolute; top: 10px; left: 10px; color: white; background: black; padding: 5px; z-index: 100; }
     </style>
 </head>
 <body>
-    <div id="debug">連線中...</div>
+    <div id="debug">啟動中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
         const debug = document.getElementById('debug');
-        const supabase = supabase.createClient(
-            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-            'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-        );
+        
+        // 5秒保護機制
+        setTimeout(() => { if(debug.innerText === "啟動中...") debug.innerText = "連線逾時，請確認網路"; }, 5000);
 
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
@@ -28,14 +27,18 @@
         new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
+        // 載入模型
         BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-            let player = meshes[0];
-            debug.innerText = "連線成功！";
+            debug.innerText = "模型載入成功，連線資料庫...";
+            
+            const supabase = supabase.createClient(
+                'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+                'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+            );
 
-            // 觸發簡單測試
             supabase.from('player_stars').select('*').limit(1).then(res => {
-                if(res.error) debug.innerText = "表名稱錯誤: " + res.error.message;
-                else debug.innerText = "已連線至 player_stars";
+                if(res.error) debug.innerText = "資料庫錯誤: " + res.error.message;
+                else debug.innerText = "連線成功！";
             });
         });
 
