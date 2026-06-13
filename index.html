@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>My Game</title>
+    <title>Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -12,35 +12,31 @@
     </style>
 </head>
 <body>
-    <div id="debug">初始化中...</div>
+    <div id="debug">連線中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
         const debug = document.getElementById('debug');
-        
-        // 1. 初始化 Babylon.js
+        const supabase = supabase.createClient(
+            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+            'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+        );
+
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        // 設定相機 (加上最後一個參數 false 讓滑動不會亂轉)
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, false); 
+        new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 2. 嘗試載入模型
         BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-            window.player = meshes[0];
-            debug.innerText = "模型載入成功，準備同步資料庫...";
-            
-            // 3. 嘗試初始化 Supabase
-            try {
-                const supabase = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM');
-                debug.innerText = "系統就緒，可以開始遊戲！";
-            } catch(e) {
-                debug.innerText = "Supabase 連線失敗";
-            }
-        }, null, (s, m) => {
-            debug.innerText = "載入錯誤: " + m;
+            let player = meshes[0];
+            debug.innerText = "連線成功！";
+
+            // 觸發簡單測試
+            supabase.from('player_stars').select('*').limit(1).then(res => {
+                if(res.error) debug.innerText = "表名稱錯誤: " + res.error.message;
+                else debug.innerText = "已連線至 player_stars";
+            });
         });
 
         engine.runRenderLoop(() => scene.render());
