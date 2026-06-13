@@ -75,7 +75,7 @@
                     const player = meshes[0];
                     player.scaling = new BABYLON.Vector3(2, 2, 2);
                     // 修正角色高度：若角色浮在空中，這裡設為負值 (例如 -2)
-                    player.position.y = -0; 
+                    player.position.y = -0.1; 
                     
                     // 將攝影機目標設為角色，確保對焦正確
                     camera.target = player;
