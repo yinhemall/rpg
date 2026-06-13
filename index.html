@@ -1,47 +1,31 @@
-<script>
-    // 1. 初始化引擎與場景 (先建立環境，不依賴任何外部變數)
-    const canvas = document.getElementById("renderCanvas");
-    const engine = new BABYLON.Engine(canvas, true);
-    const scene = new BABYLON.Scene(engine);
-    
-    // 2. 登入處理函數 (直接定義在全域，保證 HTML 按鈕找得到)
-    async function handleAuth(type) {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const nickname = document.getElementById('nickname').value;
-
-        // 初始化 Supabase
-        const sbClient = supabase.createClient(
-            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
-            { auth: { persistSession: false } }
-        );
-
-        let res;
-        if (type === 'signUp') {
-            res = await sbClient.auth.signUp({ email, password });
-            if (!res.error) await sbClient.from('player_stars').insert([{ user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 }]);
-        } else {
-            res = await sbClient.auth.signInWithPassword({ email, password });
-        }
-
-        if (res.error) {
-            alert("錯誤: " + res.error.message);
-        } else {
-            document.getElementById('ui-auth').style.display = 'none';
-            document.getElementById('ui-game').style.display = 'block';
-            initGame();
-        }
-    }
-
-    // 3. 遊戲初始化
-    function initGame() {
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>測試畫面</title>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; }
+        canvas { width: 100%; height: 100vh; display: block; }
+    </style>
+</head>
+<body>
+    <canvas id="renderCanvas"></canvas>
+    <script>
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+        const scene = new BABYLON.Scene(engine);
         
-        // 渲染循環
-        engine.runRenderLoop(() => scene.render());
-    }
-</script>
+        // 簡單的燈光與攝影機
+        new BABYLON.FreeCamera("cam", new BABYLON.Vector3(0, 5, -10), scene);
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        
+        // 一個藍色的球體 (如果有看到這個球，代表引擎沒問題)
+        BABYLON.MeshBuilder.CreateSphere("sphere", {diameter: 2}, scene);
+
+        engine.runRenderLoop(() => {
+            scene.render();
+        });
+    </script>
+</body>
+</html>
