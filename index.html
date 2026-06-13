@@ -1,107 +1,37 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; touch-action: none; }
-        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        body { margin: 0; padding: 0; background-color: #222; overflow: hidden; }
     </style>
 </head>
 <body>
-
-<div id="game-container"></div>
-
 <script>
-// --- 1. Supabase 初始化 ---
-const supabase = supabase.createClient(
-    'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-    'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-);
-
-// --- 2. 遊戲場景設定 ---
-class MyGame extends Phaser.Scene {
-    constructor() {
-        super('MyGame');
-    }
-
-    async create() {
-        // 設定背景色
-        this.cameras.main.setBackgroundColor('#222');
-
-        // 建立角色與怪物
-        this.player = this.add.rectangle(100, 100, 40, 40, 0x00ffff);
-        this.monster = this.add.rectangle(300, 300, 40, 40, 0xffa500);
-
-        // 初始化：讀取雲端存檔
-        const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
-        if (data) {
-            this.player.setPosition(data.x, data.y);
-        }
-
-        // 虛擬搖桿視覺
-        this.joystickBase = this.add.circle(150, 450, 60, 0xffffff, 0.2);
-        this.joystickKnob = this.add.circle(150, 450, 30, 0xffffff, 0.5);
-
-        // 搖桿變數
-        this.isMoving = false;
-        this.moveVector = { x: 0, y: 0 };
-
-        // 觸控監聽
-        this.input.on('pointerdown', (p) => { if(p.x < 300) this.isMoving = true; });
-        this.input.on('pointermove', (p) => {
-            if (!this.isMoving) return;
-            let dx = p.x - 150;
-            let dy = p.y - 450;
-            let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
-            let angle = Math.atan2(dy, dx);
-            this.joystickKnob.setPosition(150 + Math.cos(angle)*dist, 450 + Math.sin(angle)*dist);
-            this.moveVector = { x: Math.cos(angle) * 5, y: Math.sin(angle) * 5 };
-        });
-        this.input.on('pointerup', () => {
-            this.isMoving = false;
-            this.joystickKnob.setPosition(150, 450);
-            this.moveVector = { x: 0, y: 0 };
-            this.saveGame();
-        });
-
-        // 攻擊按鈕
-        const btn = this.add.circle(650, 450, 50, 0xff0000, 0.8).setInteractive();
-        btn.on('pointerdown', () => {
-            let d = Phaser.Math.Distance.Between(this.player.x, this.player.y, this.monster.x, this.monster.y);
-            alert(d < 100 ? "擊中！" : "太遠了！");
-        });
-    }
-
-    update() {
-        if (this.isMoving) {
-            this.player.x += this.moveVector.x;
-            this.player.y += this.moveVector.y;
-        }
-    }
-
-    async saveGame() {
-        await supabase.from('player_stars').upsert({ 
-            id: 'player1', 
-            x: Math.floor(this.player.x), 
-            y: Math.floor(this.player.y) 
-        });
-    }
-}
-
-// --- 3. 遊戲啟動配置 ---
+// 使用 Phaser.AUTO 自動判斷渲染模式 (解決某些設備黑屏)
 const config = {
-    type: Phaser.WEBGL,
-    parent: 'game-container',
+    type: Phaser.AUTO,
     width: 800,
     height: 600,
-    scene: MyGame,
-    scale: { mode: Phaser.Scale.FIT }
+    scale: {
+        mode: Phaser.Scale.FIT,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
+    scene: {
+        create: function() {
+            this.cameras.main.setBackgroundColor('#4488aa'); // 改用藍色背景確認是否載入
+            this.add.text(200, 250, '遊戲載入成功！', { fontSize: '40px', fill: '#fff' });
+            console.log("Phaser 場景已建立");
+        }
+    }
 };
 
-new Phaser.Game(config);
+window.onload = function() {
+    new Phaser.Game(config);
+};
 </script>
 </body>
 </html>
