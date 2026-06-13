@@ -9,7 +9,6 @@
 </head>
 <body>
 <script>
-// 1. 初始化 Supabase
 const supabase = supabase.createClient(
     'https://njxwgiqhlwkybtmbmvto.supabase.co', 
     'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
@@ -20,28 +19,22 @@ const config = {
     width: 800, height: 600,
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: {
-        create: async function() {
+        create: function() {
             this.cameras.main.setBackgroundColor('#2d2d2d');
-            
-            // 2. 建立玩家
             this.player = this.add.circle(400, 300, 30, 0x00ffff);
             
-            // 讀取存檔 (嘗試從雲端拿資料)
-            const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
-            if (data) {
-                this.player.setPosition(data.x, data.y);
-            }
-
-            // 3. 搖桿視覺
+            // 搖桿
             this.base = this.add.circle(150, 450, 60, 0xffffff, 0.2);
             this.knob = this.add.circle(150, 450, 30, 0xffffff, 0.5);
             this.isDragging = false;
 
-            // 4. 控制邏輯
-            this.input.on('pointerdown', (p) => {
-                if (Phaser.Math.Distance.Between(p.x, p.y, 150, 450) < 60) this.isDragging = true;
-            });
+            // 非同步載入 (就算失敗也不會影響遊戲顯示)
+            supabase.from('player_stars').select('*').eq('id', 'player1').single()
+                .then(({data}) => { if(data) this.player.setPosition(data.x, data.y); })
+                .catch(err => console.log("資料庫載入稍後再試"));
 
+            // 觸控邏輯 (保持與之前一致)
+            this.input.on('pointerdown', (p) => { if(Phaser.Math.Distance.Between(p.x, p.y, 150, 450) < 60) this.isDragging = true; });
             this.input.on('pointermove', (p) => {
                 if (!this.isDragging) return;
                 let angle = Phaser.Math.Angle.Between(150, 450, p.x, p.y);
@@ -50,16 +43,10 @@ const config = {
                 this.player.x += Math.cos(angle) * (dist / 10);
                 this.player.y += Math.sin(angle) * (dist / 10);
             });
-
-            // 5. 鬆開手時寫入資料庫
-            this.input.on('pointerup', async () => {
+            this.input.on('pointerup', () => {
                 this.isDragging = false;
                 this.knob.setPosition(150, 450);
-                await supabase.from('player_stars').upsert({ 
-                    id: 'player1', 
-                    x: Math.floor(this.player.x), 
-                    y: Math.floor(this.player.y) 
-                });
+                supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(this.player.x), y: Math.floor(this.player.y) });
             });
         }
     }
