@@ -2,17 +2,17 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>My Game</title>
+    <title>3D Minecraft RPG</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #ui { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; z-index: 999; }
+        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; }
+        #ui { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.7); padding: 15px; z-index: 999; border-radius: 8px; }
     </style>
 </head>
 <body>
-    <div id="ui">啟動中...</div>
+    <div id="ui">初始化遊戲中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
         const ui = document.getElementById('ui');
@@ -20,34 +20,55 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, false);
+        // 相機與光線
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 已幫你填入正確的 Publishable key
+        // 1. 建立一個簡易地板 (在地圖做好前，先用這個測試)
+        const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
+        
+        // 2. 初始化 Supabase
         const sbClient = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
             'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
         );
 
-        const joystick = new BABYLON.VirtualJoystick(true);
         let player = null;
+        let userId = null;
+        let lastSaveTime = 0;
 
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-            player = meshes[0];
-            ui.innerText = "成功連線！推動搖桿移動";
+        // 3. 匿名登入
+        sbClient.auth.signInAnonymously().then(res => {
+            userId = res.data.user.id;
+            ui.innerText = "已登入！載入角色中...";
+            
+            // 載入角色模型
+            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+                player = meshes[0];
+                ui.innerText = "遊戲運行中，推動搖桿移動";
+            });
         });
+
+        const joystick = new BABYLON.VirtualJoystick(true);
 
         scene.registerBeforeRender(() => {
             if (player && joystick.pressed) {
-                player.position.x += joystick.deltaPosition.x * 0.05;
-                player.position.z += joystick.deltaPosition.y * 0.05;
+                player.position.x += joystick.deltaPosition.x * 0.1;
+                player.position.z += joystick.deltaPosition.y * 0.1;
 
-                sbClient.from('player_stars').upsert({ id: 'player1', x: player.position.x, z: player.position.z })
-                .then(res => { 
-                    if(res.error) ui.innerText = "存檔失敗: " + res.error.message; 
-                    else ui.innerText = "遊戲運行中...";
-                });
+                // 4. 每 3 秒存一次檔，使用整數座標
+                if (Date.now() - lastSaveTime > 3000) {
+                    lastSaveTime = Date.now();
+                    sbClient.from('player_stars').upsert({
+                        user_id: userId,
+                        x: Math.round(player.position.x),
+                        y: 0,
+                        z: Math.round(player.position.z)
+                    }).then(res => {
+                        if (res.error) console.error("存檔失敗", res.error);
+                    });
+                }
             }
         });
 
