@@ -34,7 +34,6 @@
         const scene = new BABYLON.Scene(engine);
         const debugDiv = document.getElementById("debug");
 
-        // 登入邏輯
         const sb = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
             'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
@@ -64,33 +63,37 @@
         }
 
         function startGame() {
-            debugDiv.innerText = "正在載入世界...";
+            debugDiv.innerText = "正在載入...";
             
-            // 1. 建立地面
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 50, height: 50}, scene);
+            // 1. 產生地面
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
             const mat = new BABYLON.StandardMaterial("groundMat", scene);
-            mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+            mat.diffuseColor = new BABYLON.Color3(0, 0.5, 0);
             ground.material = mat;
 
-            // 2. 建立相機
-            const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI / 4, 30, BABYLON.Vector3.Zero(), scene);
-            camera.attachControl(canvas, true);
-            scene.activeCamera = camera;
-            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-
-            // 3. 載入模型 (加入強制設定)
-            debugDiv.innerText = "正在載入 minecraft.glb...";
+            // 2. 載入模型並強制除錯
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                debugDiv.innerText = "模型已載入！";
+                debugDiv.innerText = "模型已載入，正在調整...";
                 meshes.forEach(m => {
-                    m.position = new BABYLON.Vector3(0, 0, 0);
+                    m.position = new BABYLON.Vector3(0, 5, 0); 
                     m.scaling = new BABYLON.Vector3(1, 1, 1);
+                    
+                    // 強制上紅色，確保可見
+                    const debugMat = new BABYLON.StandardMaterial("debugMat", scene);
+                    debugMat.diffuseColor = new BABYLON.Color3(1, 0, 0); 
+                    m.material = debugMat;
                 });
+                
+                const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI / 3, 50, BABYLON.Vector3.Zero(), scene);
+                camera.attachControl(canvas, true);
+                scene.activeCamera = camera;
+                debugDiv.innerText = "已載入！(尋找紅色物體)";
             }, null, (scene, message) => {
-                debugDiv.innerText = "模型載入失敗: " + message;
+                debugDiv.innerText = "載入失敗: " + message;
             });
         }
 
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         engine.runRenderLoop(() => { scene.render(); });
         window.addEventListener("resize", () => engine.resize());
     </script>
