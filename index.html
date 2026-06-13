@@ -2,58 +2,40 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>My Game</title>
+    <title>Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #ui { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; pointer-events: none; }
+        #debug { position: absolute; top: 10px; left: 10px; color: yellow; background: black; z-index: 100; font-size: 20px; }
     </style>
 </head>
 <body>
-    <div id="ui">初始化中...</div>
+    <div id="debug">啟動中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
-        const ui = document.getElementById('ui');
+        const debug = document.getElementById('debug');
+        
+        // 檢查是否成功進入腳本
+        debug.innerText = "腳本運行中...";
+        
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        // 1. 固定相機：將參數從 10 改為 5，讓角色看起來更大，並關閉自動旋轉 (false)
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, false);
+        new BABYLON.ArcRotateCamera("cam", 0, 1, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 2. Supabase 初始化
-        const supabase = supabase.createClient(
-            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-            'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+        // 載入模型
+        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, 
+            () => { debug.innerText = "模型載入成功！"; },
+            null,
+            (s, m) => { debug.innerText = "錯誤: " + m; }
         );
-
-        // 3. 虛擬搖桿
-        const joystick = new BABYLON.VirtualJoystick(true);
-        let player = null;
-
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-            player = meshes[0];
-            ui.innerText = "已連線，推動搖桿移動";
-        });
-
-        // 4. 移動與存檔迴圈
-        scene.registerBeforeRender(() => {
-            if (player && joystick.pressed) {
-                // 角色移動
-                player.position.x += joystick.deltaPosition.x * 0.05;
-                player.position.z += joystick.deltaPosition.y * 0.05;
-
-                // 即時存檔到 player_stars 表
-                supabase.from('player_stars').upsert({ id: 'player1', x: player.position.x, z: player.position.z })
-                .then(res => { if(res.error) ui.innerText = "存檔失敗: " + res.error.message; });
-            }
-        });
 
         engine.runRenderLoop(() => scene.render());
     </script>
 </body>
 </html>
+
