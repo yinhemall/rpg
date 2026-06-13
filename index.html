@@ -1,78 +1,63 @@
 <!DOCTYPE html>
-<html lang="zh-TW">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
-    <style> body { margin: 0; background-color: #222; overflow: hidden; } </style>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { width: 100%; height: 100%; display: block; }
+        #joystick { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 2px solid white; }
+    </style>
 </head>
 <body>
-<script>
-// 設定你的 Supabase 資訊 (請勿隨意更動)
-const SUPA_URL = 'https://njxwgiqhlwkybtmbmvto.supabase.co/rest/v1/player_stars';
-const SUPA_KEY = 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM';
+    <canvas id="renderCanvas"></canvas>
+    <div id="joystick"></div>
 
-const config = {
-    type: Phaser.AUTO,
-    width: 800, height: 600,
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-    scene: {
-        create: function() {
-            this.cameras.main.setBackgroundColor('#2d2d2d');
-            
-            // 玩家角色
-            this.player = this.add.circle(400, 300, 30, 0x00ffff);
-            
-            // 1. 自動讀取存檔 (如果讀取失敗，遊戲依然會正常顯示)
+    <script>
+        const SUPA_URL = 'https://njxwgiqhlwkybtmbmvto.supabase.co/rest/v1/player_stars';
+        const SUPA_KEY = 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM';
+
+        const canvas = document.getElementById("renderCanvas");
+        const engine = new BABYLON.Engine(canvas, true);
+        const scene = new BABYLON.Scene(engine);
+
+        // 1. 場景配置
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        const player = BABYLON.MeshBuilder.CreateBox("player", {size: 1}, scene);
+        player.position.y = 0.5;
+
+        // 2. 搖桿邏輯
+        let moveX = 0, moveZ = 0;
+        const joystick = document.getElementById("joystick");
+        
+        joystick.addEventListener("touchmove", (e) => {
+            const rect = joystick.getBoundingClientRect();
+            const touch = e.touches[0];
+            moveX = (touch.clientX - rect.left - 60) / 60;
+            moveZ = -(touch.clientY - rect.top - 60) / 60; // Z軸反向
+        });
+
+        joystick.addEventListener("touchend", () => {
+            moveX = 0; moveZ = 0;
+            // 存檔
             fetch(SUPA_URL + "?id=eq.player1", {
-                method: 'GET',
-                headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data && data.length > 0) {
-                    this.player.setPosition(data[0].x, data[0].y);
-                }
-            }).catch(() => console.log("暫時無法連線資料庫"));
-
-            // 2. 建立搖桿
-            this.base = this.add.circle(150, 450, 60, 0xffffff, 0.2);
-            this.knob = this.add.circle(150, 450, 30, 0xffffff, 0.5);
-            this.isDragging = false;
-
-            // 3. 搖桿控制邏輯
-            this.input.on('pointerdown', (p) => {
-                if(Phaser.Math.Distance.Between(p.x, p.y, 150, 450) < 60) this.isDragging = true;
+                method: 'PATCH',
+                headers: { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ x: player.position.x, y: player.position.z })
             });
-            
-            this.input.on('pointermove', (p) => {
-                if (!this.isDragging) return;
-                let angle = Phaser.Math.Angle.Between(150, 450, p.x, p.y);
-                this.player.x += Math.cos(angle) * 5;
-                this.player.y += Math.sin(angle) * 5;
-                this.knob.setPosition(150 + Math.cos(angle)*30, 450 + Math.sin(angle)*30);
-            });
+        });
 
-            this.input.on('pointerup', () => {
-                this.isDragging = false;
-                this.knob.setPosition(150, 450);
-                
-                // 4. 自動存檔 (同樣使用不干擾遊戲的 fetch)
-                fetch(SUPA_URL + "?id=eq.player1", {
-                    method: 'PATCH',
-                    headers: { 
-                        'apikey': SUPA_KEY, 
-                        'Authorization': 'Bearer ' + SUPA_KEY,
-                        'Content-Type': 'application/json' 
-                    },
-                    body: JSON.stringify({ x: Math.floor(this.player.x), y: Math.floor(this.player.y) })
-                });
-            });
-        }
-    }
-};
+        // 3. 渲染迴圈
+        engine.runRenderLoop(() => {
+            player.position.x += moveX * 0.2;
+            player.position.z += moveZ * 0.2;
+            scene.render();
+        });
 
-new Phaser.Game(config);
-</script>
+        window.addEventListener("resize", () => engine.resize());
+    </script>
 </body>
 </html>
