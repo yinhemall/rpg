@@ -14,19 +14,24 @@ const config = {
     scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: {
         create: function() {
-            // 背景
             this.cameras.main.setBackgroundColor('#2d2d2d');
             
-            // 畫一個簡單的圓形，這絕對不會黑屏
-            this.player = this.add.circle(400, 300, 50, 0xffff00);
+            // 1. 建立玩家
+            this.player = this.add.circle(400, 300, 40, 0x00ffff);
             
-            this.add.text(10, 10, '若看到黃圓形，代表渲染正常', { fontSize: '20px', fill: '#fff' });
+            // 2. 建立一個觸控區域 (讓你知道哪裡可以按)
+            this.inputZone = this.add.rectangle(400, 300, 800, 600, 0xffffff, 0.1).setInteractive();
             
-            console.log("繪圖測試完成");
+            // 3. 移動邏輯：直接讓圓形跟隨手指
+            this.input.on('pointermove', (p) => {
+                if (p.isDown) {
+                    this.player.x = p.x;
+                    this.player.y = p.y;
+                }
+            });
         }
     }
 };
-
 new Phaser.Game(config);
 </script>
 </body>
