@@ -8,7 +8,8 @@
         body { margin: 0; background: #111; touch-action: none; overflow: hidden; height: 100vh; }
         #game-view { width: 100vw; height: 70vh; position: relative; background: #222; }
         #player { width: 40px; height: 40px; background: cyan; position: absolute; left: 50px; top: 50px; border-radius: 5px; }
-        #joystick-base { width: 120px; height: 120px; background: rgba(255,255,255,0.3); border-radius: 50%; position: fixed; bottom: 50px; left: 50px; }
+        /* 增加觸控區大小，確保 iOS 容易捕捉 */
+        #joystick-base { width: 150px; height: 150px; background: rgba(255,255,255,0.2); border-radius: 50%; position: fixed; bottom: 30px; left: 30px; }
     </style>
 </head>
 <body>
@@ -26,21 +27,22 @@
     const base = document.getElementById('joystick-base');
     let px = 50, py = 50;
 
-    // 直接綁定在搖桿上，避免全域干擾
-    base.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        let touch = e.touches[0];
-        
-        // 根據手指中心位置移動角色
-        px = touch.clientX - 20;
-        py = touch.clientY - 20;
-        
+    // 關鍵修正：在觸控開始時就處理位置，且不使用 e.preventDefault() 以外的干擾
+    function moveAt(pageX, pageY) {
+        px = pageX - 20;
+        py = pageY - 20;
         player.style.left = px + 'px';
         player.style.top = py + 'px';
+    }
+
+    base.addEventListener('touchmove', (e) => {
+        // 確保手指移動時位置持續更新
+        let touch = e.touches[0];
+        moveAt(touch.clientX, touch.clientY);
     }, {passive: false});
 
     base.addEventListener('touchend', async () => {
-        // 結束時存檔
+        // 只有在手指離開時才執行網路請求，避免移動中卡頓
         await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(px), y: Math.floor(py) });
     });
 </script>
