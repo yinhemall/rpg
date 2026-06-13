@@ -53,7 +53,7 @@
                 res = await sb.auth.signInWithPassword({ email, password });
                 if (!res.error) {
                     document.getElementById('ui').style.display = 'none';
-                    startGame(); // 這裡現在應該會正常呼叫了
+                    startGame();
                 }
             }
             if (res.error) alert("錯誤: " + res.error.message);
@@ -62,27 +62,28 @@
         function startGame() {
             debugDiv.innerText = "開始載入...";
             
-            // 1. 環境
-            const ground = BABYLON.MeshBuilder.CreateGround("g", {width: 50, height: 50}, scene);
-            ground.material = new BABYLON.StandardMaterial("m", scene);
-            ground.material.diffuseColor = new BABYLON.Color3(0.2, 0.6, 0.2);
-            new BABYLON.HemisphericLight("l", new BABYLON.Vector3(0, 1, 0), scene);
+            // 1. 環境光
+            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
             
+            // 2. 攝影機
             const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
             camera.attachControl(canvas, true);
 
-            // 2. 載入模型 (移除合併邏輯，改為直接遍歷處理，防止程式崩潰)
+            // 3. 載入模型 (移除所有複雜運算，改為直接控制)
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                debugDiv.innerText = "模型載入成功，正在顯示...";
+                debugDiv.innerText = "模型已載入，正在放大...";
+                
+                // 強制設定一個紅色材質
+                const forceMat = new BABYLON.StandardMaterial("forceMat", scene);
+                forceMat.diffuseColor = new BABYLON.Color3(1, 0, 0); // 強制紅色
+                
                 meshes.forEach(m => {
-                    m.position = new BABYLON.Vector3(0, 0, 0); // 確保在中心
-                    m.isVisible = true; // 強制可見
-                    if (!m.material) {
-                        m.material = new BABYLON.StandardMaterial("mat", scene);
-                        m.material.diffuseColor = new BABYLON.Color3(1, 0, 0); 
-                    }
+                    m.position = new BABYLON.Vector3(0, 0, 0);
+                    m.scaling = new BABYLON.Vector3(10, 10, 10); // 強制放大 10 倍
+                    m.material = forceMat;
+                    m.isVisible = true;
                 });
-            }, null, (s, m) => debugDiv.innerText = "載入錯誤: " + m);
+            }, null, (s, m) => debugDiv.innerText = "錯誤: " + m);
         }
 
         engine.runRenderLoop(() => { scene.render(); });
