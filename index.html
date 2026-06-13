@@ -33,11 +33,11 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
         
-        // 恢復自然環境光，移除局部聚光燈效果
+        // 燈光優化：使用 HemisphericLight 並關閉反光 (specular) 以消除異常光斑
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.9; 
+        light.intensity = 0.8; 
         light.diffuse = new BABYLON.Color3(1, 1, 1);
-        light.groundColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+        light.specular = new BABYLON.Color3(0, 0, 0); 
         
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
@@ -67,14 +67,20 @@
             ground.position.y = 0;
             const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
             groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.6, 0.3);
+            groundMat.specularColor = new BABYLON.Color3(0, 0, 0); // 地板也不要反光
             ground.material = groundMat;
 
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 if(meshes.length > 0) {
                     const player = meshes[0];
                     player.scaling = new BABYLON.Vector3(2, 2, 2);
-                    player.position.y = 0; 
-                    console.log("模型載入完成");
+                    // 修正角色高度：若角色浮在空中，這裡設為負值 (例如 -2)
+                    player.position.y = -2; 
+                    
+                    // 將攝影機目標設為角色，確保對焦正確
+                    camera.target = player;
+                    
+                    console.log("模型已載入，高度已修正");
                 }
             }, null, (s, m) => { alert("模型載入失敗: " + m); });
         }
