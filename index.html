@@ -2,22 +2,30 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Minecraft RPG 最終修正版</title>
+    <title>Minecraft RPG 遊戲</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; }
+        body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
         canvas { width: 100%; height: 100vh; display: block; }
-        #ui { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: #222; color: white; padding: 20px; z-index: 10; text-align: center; }
-        #debug { position: absolute; top: 10px; left: 10px; color: white; background: blue; z-index: 100; }
+        /* 恢復登入 UI */
+        #ui { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: #222; color: white; padding: 20px; border-radius: 10px; z-index: 10; text-align: center; }
+        input { display: block; margin: 10px auto; color: black; padding: 5px; }
+        button { cursor: pointer; padding: 10px 20px; margin: 5px; background: #555; color: white; border: none; border-radius: 5px; }
+        #debug { position: absolute; top: 10px; left: 10px; color: white; background: blue; z-index: 100; pointer-events: none; }
     </style>
 </head>
 <body>
     <div id="ui">
-        <button onclick="login()">開始遊戲</button>
+        <h3>遊戲帳號管理</h3>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="密碼">
+        <button onclick="handleAction('signIn')">登入</button>
+        <button onclick="handleAction('signUp')">註冊</button>
     </div>
-    <div id="debug">等待開始...</div>
+
+    <div id="debug">準備就緒</div>
     <canvas id="renderCanvas"></canvas>
 
     <script>
@@ -26,34 +34,53 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
 
+        const sb = supabase.createClient(
+            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
+            { auth: { persistSession: false } }
+        );
+
+        // 登入邏輯
+        async function handleAction(type) {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            let res;
+            if (type === 'signUp') {
+                res = await sb.auth.signUp({ email, password });
+            } else {
+                res = await sb.auth.signInWithPassword({ email, password });
+            }
+            
+            if (!res.error) {
+                document.getElementById('ui').style.display = 'none'; // 隱藏 UI
+                startGame(); // 啟動遊戲模型
+            } else {
+                alert("錯誤: " + res.error.message);
+            }
+        }
+
+        // 遊戲場景初始化
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
-
-        // 1. 預先建立一個穩定的地面
+        
         const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
         ground.material = new BABYLON.StandardMaterial("gMat", scene);
         ground.material.diffuseColor = new BABYLON.Color3(0, 0.5, 0);
 
-        function login() {
-            document.getElementById('ui').style.display = 'none';
-            document.getElementById("debug").innerText = "載入模型中...";
-
-            // 2. 使用相對路徑且不干擾場景的方式載入
+        function startGame() {
+            document.getElementById("debug").innerText = "模型載入中...";
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 document.getElementById("debug").innerText = "模型已載入!";
                 meshes.forEach(m => {
                     m.position = new BABYLON.Vector3(0, 2, 0);
                     m.scaling = new BABYLON.Vector3(2, 2, 2);
-                    m.material = new BABYLON.StandardMaterial("m", scene);
-                    m.material.emissiveColor = new BABYLON.Color3(1, 0, 0);
                 });
-            }, null, (s, m) => {
-                document.getElementById("debug").innerText = "載入失敗: " + m;
             });
         }
 
         engine.runRenderLoop(() => { scene.render(); });
+        window.addEventListener("resize", () => engine.resize());
     </script>
 </body>
 </html>
