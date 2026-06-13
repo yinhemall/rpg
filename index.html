@@ -18,87 +18,15 @@
 </head>
 <body>
     <div id="ui">
-        <h3>系統登入</h3>
+        <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
-        <button onclick="handleLogin()">登入</button>
+        <input type="text" id="nickname" placeholder="暱稱 (註冊用)" style="display:none;">
+        <button onclick="handleAction('signIn')">登入</button>
+        <button onclick="toggleMode()" id="toggle-btn">切換註冊</button>
     </div>
     <div id="joystick"><div id="stick"></div></div>
     <canvas id="renderCanvas"></canvas>
 
     <script>
         const canvas = document.getElementById("renderCanvas");
-        const engine = new BABYLON.Engine(canvas, true);
-        const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
-        
-        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-
-        let player, anims = {}, currentAnim, moveX = 0, moveZ = 0;
-
-        const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-
-        async function handleLogin() {
-            const res = await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
-            if (!res.error) {
-                document.getElementById('ui').style.display = 'none';
-                document.getElementById('joystick').style.display = 'block';
-                loadModel();
-            } else { alert(res.error.message); }
-        }
-
-        function loadModel() {
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, _, __, animationGroups) => {
-                player = meshes[0];
-                player.scaling = new BABYLON.Vector3(2, 2, 2);
-                camera.lockedTarget = player;
-                
-                // 抓取動作
-                anims.walk = animationGroups.find(a => a.name === "walking_test");
-                anims.still = animationGroups.find(a => a.name === "still_test");
-                
-                playAnim("still");
-            });
-        }
-
-        function playAnim(name) {
-            if (currentAnim === name) return;
-            if (anims[currentAnim]) anims[currentAnim].stop();
-            if (anims[name]) {
-                anims[name].loopAnimation = true;
-                anims[name].start(true);
-                currentAnim = name;
-            }
-        }
-
-        const joystick = document.getElementById('joystick');
-        joystick.addEventListener('touchmove', (e) => {
-            const t = e.touches[0], r = joystick.getBoundingClientRect();
-            moveX = (t.clientX - (r.left + 50)) / 50;
-            moveZ = (t.clientY - (r.top + 50)) / 50;
-            document.getElementById('stick').style.transform = `translate(${moveX*20}px, ${moveZ*20}px)`;
-        });
-        joystick.addEventListener('touchend', () => { 
-            moveX = 0; moveZ = 0; 
-            document.getElementById('stick').style.transform = `translate(0px, 0px)`; 
-        });
-
-        scene.onBeforeRenderObservable.add(() => {
-            if (player) {
-                if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
-                    player.position.x += moveX * 0.2;
-                    player.position.z -= moveZ * 0.2;
-                    playAnim("walk");
-                } else {
-                    playAnim("still");
-                }
-            }
-        });
-
-        engine.runRenderLoop(() => scene.render());
-        window.addEventListener("resize", () => engine.resize());
-    </script>
-</body>
-</html>
