@@ -9,11 +9,15 @@
 </head>
 <body>
 <script>
-// 初始化 Supabase
-const supabase = supabase.createClient(
-    'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-    'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-);
+// 強制延遲初始化 Supabase，確保遊戲先跑起來
+let supabase;
+setTimeout(() => {
+    supabase = supabase.createClient(
+        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+    );
+    console.log("Supabase 初始化完成");
+}, 1000);
 
 const config = {
     type: Phaser.AUTO,
@@ -22,44 +26,27 @@ const config = {
     scene: {
         create: function() {
             this.cameras.main.setBackgroundColor('#2d2d2d');
-            
-            // 角色
-            this.player = this.add.circle(400, 300, 30, 0x00ffff);
-            
-            // 讀取資料庫
-            supabase.from('player_stars').select('*').eq('id', 'player1').single()
-                .then(({data}) => {
-                    if(data) this.player.setPosition(data.x, data.y);
-                });
+            this.player = this.add.circle(400, 300, 30, 0x00ff00);
+            this.add.text(10, 10, '遊戲已載入，若看到綠圓形，請移動搖桿', { fill: '#fff' });
 
-            // 搖桿
             this.base = this.add.circle(150, 450, 60, 0xffffff, 0.2);
             this.knob = this.add.circle(150, 450, 30, 0xffffff, 0.5);
             this.isDragging = false;
 
-            // 事件監聽
-            this.input.on('pointerdown', (p) => {
-                if(Phaser.Math.Distance.Between(p.x, p.y, 150, 450) < 60) this.isDragging = true;
-            });
-            
+            this.input.on('pointerdown', (p) => { if(Phaser.Math.Distance.Between(p.x, p.y, 150, 450) < 60) this.isDragging = true; });
             this.input.on('pointermove', (p) => {
                 if (!this.isDragging) return;
                 let angle = Phaser.Math.Angle.Between(150, 450, p.x, p.y);
-                let dist = Math.min(Phaser.Math.Distance.Between(p.x, p.y, 150, 450), 60);
-                this.knob.setPosition(150 + Math.cos(angle) * dist, 450 + Math.sin(angle) * dist);
-                this.player.x += Math.cos(angle) * (dist / 10);
-                this.player.y += Math.sin(angle) * (dist / 10);
+                this.player.x += Math.cos(angle) * 5;
+                this.player.y += Math.sin(angle) * 5;
+                this.knob.setPosition(150 + Math.cos(angle)*30, 450 + Math.sin(angle)*30);
             });
-
             this.input.on('pointerup', () => {
                 this.isDragging = false;
                 this.knob.setPosition(150, 450);
-                // 存檔到 Supabase
-                supabase.from('player_stars').upsert({ 
-                    id: 'player1', 
-                    x: Math.floor(this.player.x), 
-                    y: Math.floor(this.player.y) 
-                }).then(() => console.log("雲端存檔成功"));
+                if(supabase) {
+                    supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(this.player.x), y: Math.floor(this.player.y) });
+                }
             });
         }
     }
