@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Game</title>
+    <title>My Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -20,12 +20,11 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        // 攝影機設定
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, false);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 初始化 Supabase (已填入你的 Key)
+        // 已幫你填入正確的 Publishable key
         const sbClient = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
             'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
@@ -36,7 +35,7 @@
 
         BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
             player = meshes[0];
-            ui.innerText = "控制成功！搖桿已啟動";
+            ui.innerText = "成功連線！推動搖桿移動";
         });
 
         scene.registerBeforeRender(() => {
@@ -44,9 +43,11 @@
                 player.position.x += joystick.deltaPosition.x * 0.05;
                 player.position.z += joystick.deltaPosition.y * 0.05;
 
-                // 嘗試存檔
                 sbClient.from('player_stars').upsert({ id: 'player1', x: player.position.x, z: player.position.z })
-                .then(res => { if(res.error) ui.innerText = "存檔失敗: " + res.error.message; });
+                .then(res => { 
+                    if(res.error) ui.innerText = "存檔失敗: " + res.error.message; 
+                    else ui.innerText = "遊戲運行中...";
+                });
             }
         });
 
