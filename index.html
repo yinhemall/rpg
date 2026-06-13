@@ -2,47 +2,32 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Minecraft Character Viewer</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <style>
-        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; display: block; overflow: hidden; }
-    </style>
 </head>
-<body>
-    <canvas id="renderCanvas"></canvas>
+<body style="margin:0; overflow:hidden;">
+    <canvas id="renderCanvas" style="width:100%; height:100vh;"></canvas>
+    <div id="errorLog" style="position:absolute; top:10px; left:10px; color:red; background:white;"></div>
     <script>
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        
-        // 攝影機設定：距離 5，面向中心
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 2.5, 5, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-        
-        // 加入燈光
-        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        new BABYLON.ArcRotateCamera("cam", 0, 1, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, true);
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 載入模型 (確保檔案在同一層目錄下)
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, _, _, animationGroups) => {
-            // 嘗試找到並播放「走路」動畫
-            // 如果模型裡面有走路動作，它通常會自動被載入到 animationGroups 列表裡
-            if (animationGroups.length > 0) {
-                // 播放第一個動畫片段 (如果是 Walking)
-                animationGroups[0].start(true);
-                console.log("正在播放動畫: " + animationGroups[0].name);
+        // 載入模型並顯示詳細錯誤
+        BABYLON.SceneLoader.ImportMesh("", "", "minecraft.glb", scene, 
+            (meshes) => {
+                document.getElementById("errorLog").innerText = "模型載入成功！";
+            },
+            null,
+            (scene, message) => {
+                document.getElementById("errorLog").innerText = "錯誤: " + message;
+                console.error(message);
             }
-        });
+        );
 
-        // 啟動渲染迴圈
-        engine.runRenderLoop(() => {
-            scene.render();
-        });
-
-        // 視窗調整大小時自動適應
-        window.addEventListener("resize", () => {
-            engine.resize();
-        });
+        engine.runRenderLoop(() => scene.render());
     </script>
 </body>
 </html>
