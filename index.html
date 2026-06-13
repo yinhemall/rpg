@@ -27,29 +27,24 @@
     <canvas id="renderCanvas"></canvas>
 
     <script>
-        // --- 終極清理：防止自動恢復匿名 Session ---
-        // 刪除所有以 'sb-' 開頭的快取 (Supabase 儲存格式)
-        Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('sb-')) localStorage.removeItem(key);
-        });
-
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         const uiGame = document.getElementById('ui-game');
-
-        // 初始化：明確關閉持久化以防鬼魂數據干擾
-        const sbClient = supabase.createClient(
-            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
-            { auth: { persistSession: false } } 
-        );
-
-        let player = null;
-        let userId = null;
-        let lastSaveTime = 0;
+        
+        // 延遲初始化變數
+        let sbClient = null;
 
         async function handleAuth(type) {
+            // 點擊後才進行清理與初始化，避開 SDK 啟動瞬間的自動檢查
+            localStorage.clear();
+            
+            sbClient = supabase.createClient(
+                'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+                'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
+                { auth: { persistSession: false } }
+            );
+
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const nickname = document.getElementById('nickname').value;
@@ -69,22 +64,20 @@
             if (res.error) {
                 alert("錯誤: " + res.error.message);
             } else {
-                userId = res.data.user.id;
                 document.getElementById('ui-auth').style.display = 'none';
                 uiGame.style.display = 'block';
-                uiGame.innerText = "歡迎！載入中...";
-                initGame();
+                initGame(res.data.user.id);
             }
         }
 
-        function initGame() {
+        function initGame(userId) {
             const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
             camera.attachControl(canvas, true);
             new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
             BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
 
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, ps, sk, animationGroups) => {
-                player = meshes[0];
+                let player = meshes[0];
                 const idleAnim = scene.getAnimationGroupByName("still_test");
                 const walkAnim = scene.getAnimationGroupByName("walking_test");
                 if (idleAnim) idleAnim.start(true);
