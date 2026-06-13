@@ -2,21 +2,16 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Minecraft Cyber RPG</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; touch-action: none; }
         canvas { width: 100%; height: 100vh; display: block; }
-        #ui { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(20, 25, 40, 0.9); padding: 30px; border-radius: 20px; 
-            border: 1px solid #0ff; z-index: 100; text-align: center; color: #fff;
-        }
-        input { display: block; margin: 10px auto; padding: 8px; border-radius: 4px; border: none; }
-        button { cursor: pointer; padding: 10px 20px; margin: 5px; border: 1px solid #0ff; background: transparent; color: #0ff; }
-        #joystick { position: absolute; bottom: 50px; left: 50px; width: 100px; height: 100px; border: 2px solid #0ff; border-radius: 50%; z-index: 20; touch-action: none; display: none; }
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; text-align: center; z-index: 100; }
+        #joystick { position: absolute; bottom: 50px; left: 50px; width: 100px; height: 100px; border: 2px solid #0ff; border-radius: 50%; display: none; touch-action: none; z-index: 50; }
         #stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: #fff; border-radius: 50%; }
     </style>
 </head>
@@ -25,11 +20,10 @@
         <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
-        <input type="text" id="nickname" placeholder="暱稱 (僅註冊用)" style="display:none;">
+        <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
         <button onclick="handleAction('signIn')">登入</button>
         <button onclick="toggleMode()">切換註冊</button>
     </div>
-
     <div id="joystick"><div id="stick"></div></div>
     <canvas id="renderCanvas"></canvas>
 
@@ -37,23 +31,20 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0.05, 0.05, 0.1, 1);
+        scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
+
+        const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
+        light.intensity = 0.8;
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
 
-        let player, moveX = 0, moveZ = 0, isSignUp = false;
+        let player, moveX = 0, moveZ = 0, isSignUp = false, loggedIn = false;
         const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
 
-        // 強制建立光源，解決全白問題
-        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 1.5;
-
-        // 地面
-        const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 200, height: 200}, scene);
-        const mat = new BABYLON.StandardMaterial("groundMat", scene);
-        mat.diffuseColor = new BABYLON.Color3(0.1, 0.2, 0.1);
-        ground.material = mat;
+        const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
+        ground.material = new BABYLON.StandardMaterial("gMat", scene);
+        ground.material.diffuseColor = new BABYLON.Color3(0.2, 0.2, 0.2);
 
         function toggleMode() {
             isSignUp = !isSignUp;
@@ -64,15 +55,17 @@
         async function handleAction(type) {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            const nickname = document.getElementById('nickname').value;
-            let res = isSignUp ? await sb.auth.signUp({ email, password, options: { data: { nickname } } }) 
-                               : await sb.auth.signInWithPassword({ email, password });
-            
+            let res = isSignUp ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
             if (!res.error) {
                 document.getElementById('ui').style.display = 'none';
-                document.getElementById('joystick').style.display = 'block';
+                loggedIn = true;
+                updateJoystickVisibility();
                 loadModel();
-            } else { alert("錯誤: " + res.error.message); }
+            } else { alert(res.error.message); }
+        }
+
+        function updateJoystickVisibility() {
+            document.getElementById('joystick').style.display = loggedIn ? 'block' : 'none';
         }
 
         function loadModel() {
@@ -80,17 +73,11 @@
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
                 player.position = new BABYLON.Vector3(0, 0, 0);
-                // 確保紋理不顯示為全白
-                meshes.forEach(m => {
-                    if (m.material) {
-                        m.material.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.5);
-                    }
-                });
                 camera.lockedTarget = player;
+                meshes.forEach(m => { if(m.material) m.material.emissiveColor = new BABYLON.Color3(0, 0, 0); });
             });
         }
 
-        // 搖桿邏輯
         const joystick = document.getElementById('joystick');
         joystick.addEventListener('touchmove', (e) => {
             const touch = e.touches[0];
@@ -112,7 +99,12 @@
         });
 
         engine.runRenderLoop(() => { scene.render(); });
-        window.addEventListener("resize", () => engine.resize());
+        
+        // 強制處理旋轉與縮放問題
+        window.addEventListener("resize", () => {
+            engine.resize();
+            updateJoystickVisibility();
+        });
     </script>
 </body>
 </html>
