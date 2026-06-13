@@ -65,27 +65,28 @@
         }
 
         function startGame() {
-            debugDiv.innerText = "正在載入模型...";
+            debugDiv.innerText = "正在載入...";
             
-            // 產生地面
+            // 1. 建立地面
             const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 50, height: 50}, scene);
             const mat = new BABYLON.StandardMaterial("groundMat", scene);
             mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
             ground.material = mat;
 
-            // 載入正確的小寫檔名
+            // 2. 載入模型
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                player = meshes[0];
-                player.position = new BABYLON.Vector3(0, 0.5, 0);
-                debugDiv.innerText = "遊戲已開始！";
+                if (meshes.length > 0) {
+                    player = meshes[0];
+                    player.position = new BABYLON.Vector3(0, 0, 0);
+                    debugDiv.innerText = "遊戲已開始！";
 
-                const camera = new BABYLON.FollowCamera("followCam", player.position.add(new BABYLON.Vector3(0, 5, -10)), scene);
-                camera.lockedTarget = player;
-                camera.radius = 15;
-                camera.heightOffset = 5;
-                scene.activeCamera = camera;
+                    // 3. 使用自由旋轉相機，確保你看得到東西
+                    const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI / 4, 30, player.position, scene);
+                    camera.attachControl(canvas, true);
+                    scene.activeCamera = camera;
+                }
             }, null, (scene, message) => {
-                debugDiv.innerText = "載入失敗: " + message;
+                debugDiv.innerText = "模型載入失敗: " + message;
             });
         }
 
