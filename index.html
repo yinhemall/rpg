@@ -8,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        /* 註冊/登入介面樣式 */
         #ui-auth { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 10px; z-index: 1000; text-align: center; }
         #ui-game { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.7); padding: 10px; z-index: 999; border-radius: 8px; pointer-events: none; }
         input { display: block; margin: 10px auto; padding: 8px; width: 220px; color: black; }
@@ -28,22 +27,27 @@
     <canvas id="renderCanvas"></canvas>
 
     <script>
+        // 徹底清除舊紀錄，確保不會觸發匿名登入檢查
+        localStorage.clear();
+
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         const uiGame = document.getElementById('ui-game');
 
-        // Supabase 初始化 (請填入您的正確 Key)
         const sbClient = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+            'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
+            { auth: { persistSession: true, storage: localStorage } }
         );
+
+        // 強制登出任何殘留的 Session
+        sbClient.auth.signOut();
 
         let player = null;
         let userId = null;
         let lastSaveTime = 0;
 
-        // 登入與註冊處理
         async function handleAuth(type) {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
@@ -52,12 +56,9 @@
             let res;
             if (type === 'signUp') {
                 res = await sbClient.auth.signUp({ email, password });
-                if (!res.error) {
-                    // 註冊成功後，寫入暱稱到資料庫
+                if (!res.error && res.data.user) {
                     await sbClient.from('player_stars').insert([{ 
-                        user_id: res.data.user.id, 
-                        nickname: nickname,
-                        x: 0, z: 0 
+                        user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 
                     }]);
                 }
             } else {
@@ -70,7 +71,7 @@
                 userId = res.data.user.id;
                 document.getElementById('ui-auth').style.display = 'none';
                 uiGame.style.display = 'block';
-                uiGame.innerText = "歡迎 " + nickname + "！載入模型中...";
+                uiGame.innerText = "歡迎 " + nickname + "！載入中...";
                 initGame();
             }
         }
@@ -91,14 +92,11 @@
                 if (player && joystick.pressed) {
                     player.position.x += joystick.deltaPosition.x * 0.1;
                     player.position.z += joystick.deltaPosition.y * 0.1;
-
                     if (Date.now() - lastSaveTime > 3000) {
                         lastSaveTime = Date.now();
                         sbClient.from('player_stars').upsert({
-                            user_id: userId,
-                            x: Math.round(player.position.x),
-                            z: Math.round(player.position.z)
-                        }).then(res => { if (res.error) console.error("存檔失敗", res.error); });
+                            user_id: userId, x: Math.round(player.position.x), z: Math.round(player.position.z)
+                        });
                     }
                 }
             });
