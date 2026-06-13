@@ -2,40 +2,46 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Game</title>
+    <title>Debug Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #debug { position: absolute; top: 10px; left: 10px; color: yellow; background: black; z-index: 100; font-size: 20px; }
+        body { margin: 0; background: #222; }
+        #debug { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.8); padding: 10px; font-family: monospace; z-index: 999; }
     </style>
 </head>
 <body>
-    <div id="debug">啟動中...</div>
-    <canvas id="renderCanvas"></canvas>
+    <div id="debug">開始測試...</div>
+    <canvas id="renderCanvas" style="width: 100%; height: 100vh; display: block;"></canvas>
     <script>
         const debug = document.getElementById('debug');
         
-        // 檢查是否成功進入腳本
-        debug.innerText = "腳本運行中...";
-        
-        const canvas = document.getElementById("renderCanvas");
-        const engine = new BABYLON.Engine(canvas, true);
-        const scene = new BABYLON.Scene(engine);
-        
-        new BABYLON.ArcRotateCamera("cam", 0, 1, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
-        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        try {
+            const canvas = document.getElementById("renderCanvas");
+            const engine = new BABYLON.Engine(canvas, true);
+            const scene = new BABYLON.Scene(engine);
+            
+            // 建立相機與燈光
+            new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
+            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 載入模型
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, 
-            () => { debug.innerText = "模型載入成功！"; },
-            null,
-            (s, m) => { debug.innerText = "錯誤: " + m; }
-        );
-
-        engine.runRenderLoop(() => scene.render());
+            // 1. 測試 Supabase
+            debug.innerText = "正在連線 Supabase...";
+            const supabase = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM');
+            
+            // 2. 載入模型
+            debug.innerText = "Supabase OK, 載入模型...";
+            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+                debug.innerText = "成功！模型已載入，正在運作...";
+                engine.runRenderLoop(() => scene.render());
+            }, null, (s, m) => {
+                debug.innerText = "模型載入失敗: " + m;
+            });
+            
+        } catch (e) {
+            debug.innerText = "程式錯誤: " + e.message;
+        }
     </script>
 </body>
 </html>
-
