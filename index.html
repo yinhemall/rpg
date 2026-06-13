@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Minecraft RPG 登入測試</title>
+    <title>Minecraft RPG 登入與註冊</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -14,10 +14,12 @@
 </head>
 <body>
     <div id="ui">
-        <h3>帳號登入</h3>
+        <h3>遊戲帳號管理</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
-        <button onclick="login()">登入遊戲</button>
+        <input type="text" id="nickname" placeholder="遊戲暱稱">
+        <button onclick="handleAction('signIn')">登入</button>
+        <button onclick="handleAction('signUp')">註冊</button>
     </div>
     <canvas id="renderCanvas"></canvas>
 
@@ -26,31 +28,46 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
 
-        // 核心修正：明確關閉 persistSession
         const sb = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
             'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
             { auth: { persistSession: false } }
         );
 
-        async function login() {
+        async function handleAction(type) {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            
-            const { data, error } = await sb.auth.signInWithPassword({ email, password });
-            
-            if (error) {
-                alert("錯誤: " + error.message);
+            const nickname = document.getElementById('nickname').value;
+
+            let res;
+            if (type === 'signUp') {
+                // 1. 註冊帳號
+                res = await sb.auth.signUp({ email, password });
+                // 2. 註冊成功後，寫入暱稱到 player_stars 表
+                if (!res.error && res.data.user) {
+                    await sb.from('player_stars').insert([{ 
+                        user_id: res.data.user.id, 
+                        nickname: nickname, 
+                        x: 0, z: 0 
+                    }]);
+                    alert("註冊成功！現在可以登入了。");
+                }
             } else {
-                document.getElementById('ui').style.display = 'none';
-                alert("登入成功！");
+                // 登入
+                res = await sb.auth.signInWithPassword({ email, password });
+                if (!res.error) {
+                    document.getElementById('ui').style.display = 'none';
+                    alert("登入成功！進入遊戲...");
+                }
             }
+            
+            if (res.error) alert("錯誤: " + res.error.message);
         }
 
+        // 基本場景
         new BABYLON.FreeCamera("cam", new BABYLON.Vector3(0, 5, -10), scene);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         BABYLON.MeshBuilder.CreateSphere("sphere", {diameter: 2}, scene);
-
         engine.runRenderLoop(() => scene.render());
     </script>
 </body>
