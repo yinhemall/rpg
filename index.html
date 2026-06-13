@@ -5,33 +5,49 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body { margin: 0; padding: 0; background-color: #222; overflow: hidden; }
-    </style>
+    <style> body { margin: 0; background-color: #222; overflow: hidden; } </style>
 </head>
 <body>
 <script>
-// 使用 Phaser.AUTO 自動判斷渲染模式 (解決某些設備黑屏)
+const supabase = supabase.createClient(
+    'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+    'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+);
+
 const config = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
-    scale: {
-        mode: Phaser.Scale.FIT,
-        autoCenter: Phaser.Scale.CENTER_BOTH
-    },
+    width: 800, height: 600,
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
     scene: {
-        create: function() {
-            this.cameras.main.setBackgroundColor('#4488aa'); // 改用藍色背景確認是否載入
-            this.add.text(200, 250, '遊戲載入成功！', { fontSize: '40px', fill: '#fff' });
-            console.log("Phaser 場景已建立");
+        preload: function() {},
+        create: async function() {
+            // 1. 玩家與搖桿
+            this.player = this.add.rectangle(400, 300, 40, 40, 0x00ffff);
+            this.joystick = this.add.circle(150, 450, 60, 0xffffff, 0.3).setInteractive();
+            this.add.text(120, 440, '搖桿', { fontSize: '20px' });
+
+            // 2. 讀取資料
+            const { data } = await supabase.from('player_stars').select('*').eq('id', 'player1').single();
+            if (data) this.player.setPosition(data.x, data.y);
+
+            // 3. 移動邏輯
+            this.input.on('pointermove', (p) => {
+                if (p.isDown && Phaser.Geom.Circle.Contains(this.joystick.getBounds(), p.x, p.y)) {
+                    this.player.x = p.x;
+                    this.player.y = p.y;
+                }
+            });
+
+            // 4. 存檔邏輯
+            this.input.on('pointerup', async () => {
+                await supabase.from('player_stars').upsert({ id: 'player1', x: Math.floor(this.player.x), y: Math.floor(this.player.y) });
+                console.log("存檔成功");
+            });
         }
     }
 };
 
-window.onload = function() {
-    new Phaser.Game(config);
-};
+new Phaser.Game(config);
 </script>
 </body>
 </html>
