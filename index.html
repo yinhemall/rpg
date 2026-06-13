@@ -9,12 +9,10 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; }
-        #renderCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
-        
+        #renderCanvas { width: 100vw; height: 100vh; display: block; position: fixed; top: 0; left: 0; touch-action: none; }
         #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 25px; border: 1px solid #0ff; color: #fff; text-align: center; z-index: 100; border-radius: 15px; width: 85%; max-width: 300px; }
         input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #000; color: #fff; border: 1px solid #444; }
         button { padding: 10px 20px; margin: 5px; background: transparent; color: #0ff; border: 1px solid #0ff; cursor: pointer; }
-        
         #joystick { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; border: 2px solid #0ff; border-radius: 50%; display: none; z-index: 50; touch-action: none; }
         #stick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: white; border-radius: 50%; pointer-events: none; }
     </style>
@@ -37,13 +35,13 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
         
-        // 使用極低強度的環境光，徹底消除刺眼亮塊
+        // 燈光優化：降低強度並移除所有反光，徹底消除過曝亮塊
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.5;
+        light.intensity = 0.4; 
 
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-
+        // 攝影機改為 FollowCamera 自動鎖定角色背後
+        let camera;
+        
         const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 200, height: 200}, scene);
         const gMat = new BABYLON.StandardMaterial("gMat", scene);
         gMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
@@ -78,7 +76,18 @@
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, _, __, animationGroups) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
-                camera.lockedTarget = player;
+                
+                // 強制關閉材質反光
+                meshes.forEach(m => { 
+                    if(m.material) { m.material.emissiveColor = new BABYLON.Color3(0,0,0); m.material.specularColor = new BABYLON.Color3(0,0,0); }
+                });
+
+                // 初始化 FollowCamera
+                camera = new BABYLON.FollowCamera("fCam", player.position, scene, player);
+                camera.radius = 15;
+                camera.heightOffset = 8;
+                camera.rotationOffset = 0;
+
                 anims.walk = animationGroups.find(a => a.name === "walking_test");
                 anims.still = animationGroups.find(a => a.name === "still_test");
                 playAnim("still");
@@ -108,6 +117,8 @@
         scene.onBeforeRenderObservable.add(() => {
             if (player) {
                 if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
+                    // 角色轉身與移動
+                    player.rotation.y = Math.atan2(moveX, -moveZ);
                     player.position.x += moveX * 0.3;
                     player.position.z -= moveZ * 0.3;
                     playAnim("walk");
