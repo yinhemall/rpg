@@ -21,8 +21,8 @@
         <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
-        <input type="text" id="nickname" placeholder="暱稱 (註冊用)" style="display:none;">
-        <button onclick="handleAction()">確認</button>
+        <input type="text" id="nickname" placeholder="設置暱稱" style="display:none;">
+        <button id="main-btn" onclick="handleAction()">登入</button>
         <button onclick="toggleMode()" id="toggle-btn">切換註冊</button>
     </div>
     <div id="joystick"><div id="stick"></div></div>
@@ -44,24 +44,27 @@
         function toggleMode() {
             isSignUp = !isSignUp;
             document.getElementById('ui-title').innerText = isSignUp ? "系統註冊" : "系統登入";
-            document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
+            document.getElementById('main-btn').innerText = isSignUp ? "註冊" : "登入";
             document.getElementById('toggle-btn').innerText = isSignUp ? "切換登入" : "切換註冊";
+            document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
         }
 
         async function handleAction() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            console.log("嘗試執行:", isSignUp ? "註冊" : "登入", "帳號:", email);
+            const nickname = document.getElementById('nickname').value;
             
             try {
-                let res = isSignUp ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
+                let res = isSignUp 
+                    ? await sb.auth.signUp({ email, password, options: { data: { nickname } } }) 
+                    : await sb.auth.signInWithPassword({ email, password });
+                
                 if (res.error) throw res.error;
                 
                 document.getElementById('ui').style.display = 'none';
                 document.getElementById('joystick').style.display = 'block';
                 loadModel();
             } catch (err) {
-                console.error("登入錯誤:", err);
                 alert("錯誤: " + err.message);
             }
         }
@@ -85,7 +88,6 @@
             currentAnim = name;
         }
 
-        // 搖桿事件
         const joystick = document.getElementById('joystick');
         joystick.addEventListener('touchmove', (e) => {
             const t = e.touches[0], r = joystick.getBoundingClientRect();
