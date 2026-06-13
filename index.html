@@ -1,110 +1,86 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <title>3D Minecraft RPG</title>
-    <script src="https://cdn.babylonjs.com/babylon.js"></script>
-    <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <style>
-        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #ui-auth { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 10px; z-index: 1000; text-align: center; }
-        #ui-game { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.7); padding: 10px; z-index: 999; border-radius: 8px; pointer-events: none; }
-        input { display: block; margin: 10px auto; padding: 8px; width: 220px; color: black; }
-    </style>
-</head>
-<body>
-    <div id="ui-auth">
-        <h3>遊戲登入 / 註冊</h3>
-        <input type="email" id="email" placeholder="Email">
-        <input type="password" id="password" placeholder="密碼">
-        <input type="text" id="nickname" placeholder="遊戲暱稱">
-        <button onclick="handleAuth('signUp')">註冊帳號</button>
-        <button onclick="handleAuth('signIn')">直接登入</button>
-    </div>
+<script>
+    const canvas = document.getElementById("renderCanvas");
+    const engine = new BABYLON.Engine(canvas, true);
+    const scene = new BABYLON.Scene(engine);
+    const uiGame = document.getElementById('ui-game');
+    
+    // 徹底清除所有儲存紀錄
+    localStorage.clear();
+    sessionStorage.clear();
 
-    <div id="ui-game" style="display:none;">遊戲運行中</div>
-    <canvas id="renderCanvas"></canvas>
+    // 關鍵：將 auth 配置設為最嚴格模式
+    const sbClient = supabase.createClient(
+        'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+        'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
+        { 
+            auth: { 
+                persistSession: false,
+                autoRefreshToken: false,
+                detectSessionInUrl: false
+            } 
+        }
+    );
 
-    <script>
-        const canvas = document.getElementById("renderCanvas");
-        const engine = new BABYLON.Engine(canvas, true);
-        const scene = new BABYLON.Scene(engine);
-        const uiGame = document.getElementById('ui-game');
-        
-        // 延遲初始化變數
-        let sbClient = null;
+    async function handleAuth(type) {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const nickname = document.getElementById('nickname').value;
 
-        async function handleAuth(type) {
-            // 點擊後才進行清理與初始化，避開 SDK 啟動瞬間的自動檢查
-            localStorage.clear();
-            
-            sbClient = supabase.createClient(
-                'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-                'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
-                { auth: { persistSession: false } }
-            );
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const nickname = document.getElementById('nickname').value;
-
-            let res;
-            if (type === 'signUp') {
-                res = await sbClient.auth.signUp({ email, password });
-                if (!res.error && res.data.user) {
-                    await sbClient.from('player_stars').insert([{ 
-                        user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 
-                    }]);
-                }
-            } else {
-                res = await sbClient.auth.signInWithPassword({ email, password });
+        let res;
+        if (type === 'signUp') {
+            res = await sbClient.auth.signUp({ email, password });
+            if (!res.error && res.data.user) {
+                // 註冊後寫入暱稱
+                await sbClient.from('player_stars').insert([{ 
+                    user_id: res.data.user.id, nickname: nickname, x: 0, z: 0 
+                }]);
             }
-
-            if (res.error) {
-                alert("錯誤: " + res.error.message);
-            } else {
-                document.getElementById('ui-auth').style.display = 'none';
-                uiGame.style.display = 'block';
-                initGame(res.data.user.id);
-            }
+        } else {
+            res = await sbClient.auth.signInWithPassword({ email, password });
         }
 
-        function initGame(userId) {
-            const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
-            camera.attachControl(canvas, true);
-            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
+        if (res.error) {
+            alert("登入/註冊錯誤: " + res.error.message);
+        } else {
+            document.getElementById('ui-auth').style.display = 'none';
+            uiGame.style.display = 'block';
+            initGame(res.data.user.id);
+        }
+    }
 
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, ps, sk, animationGroups) => {
-                let player = meshes[0];
-                const idleAnim = scene.getAnimationGroupByName("still_test");
-                const walkAnim = scene.getAnimationGroupByName("walking_test");
-                if (idleAnim) idleAnim.start(true);
+    function initGame(userId) {
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
 
-                let isWalking = false;
-                const joystick = new BABYLON.VirtualJoystick(true);
+        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, ps, sk, animationGroups) => {
+            let player = meshes[0];
+            const idleAnim = scene.getAnimationGroupByName("still_test");
+            const walkAnim = scene.getAnimationGroupByName("walking_test");
+            if (idleAnim) idleAnim.start(true);
 
-                scene.registerBeforeRender(() => {
-                    if (player && joystick.pressed) {
-                        player.position.x += joystick.deltaPosition.x * 0.1;
-                        player.position.z += joystick.deltaPosition.y * 0.1;
-                        player.lookAt(player.position.add(new BABYLON.Vector3(joystick.deltaPosition.x, 0, joystick.deltaPosition.y)));
-                        if (!isWalking) {
-                            if (idleAnim) idleAnim.stop();
-                            if (walkAnim) walkAnim.start(true);
-                            isWalking = true;
-                        }
-                    } else if (isWalking) {
-                        if (walkAnim) walkAnim.stop();
-                        if (idleAnim) idleAnim.start(true);
-                        isWalking = false;
+            let isWalking = false;
+            const joystick = new BABYLON.VirtualJoystick(true);
+
+            scene.registerBeforeRender(() => {
+                if (player && joystick.pressed) {
+                    player.position.x += joystick.deltaPosition.x * 0.1;
+                    player.position.z += joystick.deltaPosition.y * 0.1;
+                    player.lookAt(player.position.add(new BABYLON.Vector3(joystick.deltaPosition.x, 0, joystick.deltaPosition.y)));
+                    if (!isWalking) {
+                        if (idleAnim) idleAnim.stop();
+                        if (walkAnim) walkAnim.start(true);
+                        isWalking = true;
                     }
-                });
-                uiGame.innerText = "遊戲運行中";
+                } else if (isWalking) {
+                    if (walkAnim) walkAnim.stop();
+                    if (idleAnim) idleAnim.start(true);
+                    isWalking = false;
+                }
             });
-            engine.runRenderLoop(() => scene.render());
-        }
-    </script>
-</body>
-</html>
+            uiGame.innerText = "遊戲運行中";
+        });
+        engine.runRenderLoop(() => scene.render());
+    }
+</script>
