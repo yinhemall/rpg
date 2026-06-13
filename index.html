@@ -27,7 +27,7 @@
     <canvas id="renderCanvas"></canvas>
 
     <script>
-        // 徹底清除舊紀錄，確保不會觸發匿名登入檢查
+        // 強制清除任何殘留的登入狀態
         localStorage.clear();
 
         const canvas = document.getElementById("renderCanvas");
@@ -41,7 +41,7 @@
             { auth: { persistSession: true, storage: localStorage } }
         );
 
-        // 強制登出任何殘留的 Session
+        // 確保沒有匿名帳號偷偷登入
         sbClient.auth.signOut();
 
         let player = null;
@@ -82,23 +82,42 @@
             new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
             BABYLON.MeshBuilder.CreateGround("ground", {width: 20, height: 20}, scene);
 
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, ps, sk, animationGroups) => {
                 player = meshes[0];
-                uiGame.innerText = "遊戲運行中，推動搖桿移動";
-            });
+                
+                // 動畫初始化
+                const idleAnim = scene.getAnimationGroupByName("still_test");
+                const walkAnim = scene.getAnimationGroupByName("walking_test");
+                if (idleAnim) idleAnim.start(true);
 
-            const joystick = new BABYLON.VirtualJoystick(true);
-            scene.registerBeforeRender(() => {
-                if (player && joystick.pressed) {
-                    player.position.x += joystick.deltaPosition.x * 0.1;
-                    player.position.z += joystick.deltaPosition.y * 0.1;
-                    if (Date.now() - lastSaveTime > 3000) {
-                        lastSaveTime = Date.now();
-                        sbClient.from('player_stars').upsert({
-                            user_id: userId, x: Math.round(player.position.x), z: Math.round(player.position.z)
-                        });
+                let isWalking = false;
+                const joystick = new BABYLON.VirtualJoystick(true);
+
+                scene.registerBeforeRender(() => {
+                    if (player && joystick.pressed) {
+                        player.position.x += joystick.deltaPosition.x * 0.1;
+                        player.position.z += joystick.deltaPosition.y * 0.1;
+                        player.lookAt(player.position.add(new BABYLON.Vector3(joystick.deltaPosition.x, 0, joystick.deltaPosition.y)));
+
+                        if (!isWalking) {
+                            if (idleAnim) idleAnim.stop();
+                            if (walkAnim) walkAnim.start(true);
+                            isWalking = true;
+                        }
+
+                        if (Date.now() - lastSaveTime > 3000) {
+                            lastSaveTime = Date.now();
+                            sbClient.from('player_stars').upsert({
+                                user_id: userId, x: Math.round(player.position.x), z: Math.round(player.position.z)
+                            });
+                        }
+                    } else if (isWalking) {
+                        if (walkAnim) walkAnim.stop();
+                        if (idleAnim) idleAnim.start(true);
+                        isWalking = false;
                     }
-                }
+                });
+                uiGame.innerText = "遊戲運行中，推動搖桿移動";
             });
             engine.runRenderLoop(() => scene.render());
         }
