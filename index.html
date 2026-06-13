@@ -57,11 +57,19 @@
 
         function loadModel() {
             console.log("開始載入模型...");
+            
+            // --- 新增地板 ---
+            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 50, height: 50}, scene);
+            const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
+            groundMat.diffuseColor = new BABYLON.Color3(0.4, 0.8, 0.4); // 綠色地板
+            ground.material = groundMat;
+
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 if(meshes.length > 0) {
                     meshes[0].scaling = new BABYLON.Vector3(2, 2, 2);
+                    meshes[0].position.y = 0; // 確保站在地板上
                     console.log("模型已加入場景，名稱:", meshes[0].name);
-                    alert("模型已載入！如果沒看到人，請旋轉螢幕。");
+                    alert("模型已載入！");
                 }
             }, null, (s, m) => { alert("模型載入失敗，路徑可能錯誤: " + m); });
         }
