@@ -7,18 +7,17 @@
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; padding: 0; overflow: hidden; background: #050505; font-family: sans-serif; }
+        body { margin: 0; padding: 0; overflow: hidden; background: #000; font-family: sans-serif; }
         canvas { width: 100%; height: 100vh; display: block; }
         #ui { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(20, 25, 40, 0.8); backdrop-filter: blur(10px);
-            padding: 30px; border-radius: 20px; border: 1px solid #0ff; z-index: 100; text-align: center; color: #fff;
+            background: rgba(20, 25, 40, 0.9); padding: 30px; border-radius: 20px; 
+            border: 1px solid #0ff; z-index: 100; text-align: center; color: #fff;
         }
-        input { display: block; margin: 15px auto; padding: 10px; border-radius: 5px; border: none; width: 200px; }
-        button { cursor: pointer; padding: 10px 20px; margin: 5px; background: transparent; color: #0ff; border: 1px solid #0ff; border-radius: 5px; }
-        button:hover { background: #0ff; color: #000; }
-        #joystick { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; border: 2px solid #0ff; border-radius: 50%; z-index: 20; touch-action: none; display: none; }
-        #stick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: white; border-radius: 50%; }
+        input { display: block; margin: 10px auto; padding: 8px; border-radius: 4px; border: none; }
+        button { cursor: pointer; padding: 10px 20px; margin: 5px; border: 1px solid #0ff; background: transparent; color: #0ff; }
+        #joystick { position: absolute; bottom: 50px; left: 50px; width: 100px; height: 100px; border: 2px solid #0ff; border-radius: 50%; z-index: 20; touch-action: none; display: none; }
+        #stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: #fff; border-radius: 50%; }
     </style>
 </head>
 <body>
@@ -26,12 +25,9 @@
         <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
-        <input type="text" id="nickname" placeholder="設置暱稱 (僅註冊用)" style="display:none;">
-        
-        <div id="login-btns">
-            <button onclick="handleAction('signIn')">登入</button>
-            <button onclick="toggleMode()">切換至註冊</button>
-        </div>
+        <input type="text" id="nickname" placeholder="暱稱 (僅註冊用)" style="display:none;">
+        <button onclick="handleAction('signIn')">登入</button>
+        <button onclick="toggleMode()">切換註冊</button>
     </div>
 
     <div id="joystick"><div id="stick"></div></div>
@@ -41,13 +37,23 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.2, 1);
+        scene.clearColor = new BABYLON.Color4(0.05, 0.05, 0.1, 1);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
 
         let player, moveX = 0, moveZ = 0, isSignUp = false;
         const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
+
+        // 強制建立光源，解決全白問題
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        light.intensity = 1.5;
+
+        // 地面
+        const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 200, height: 200}, scene);
+        const mat = new BABYLON.StandardMaterial("groundMat", scene);
+        mat.diffuseColor = new BABYLON.Color3(0.1, 0.2, 0.1);
+        ground.material = mat;
 
         function toggleMode() {
             isSignUp = !isSignUp;
@@ -59,44 +65,49 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const nickname = document.getElementById('nickname').value;
-            
             let res = isSignUp ? await sb.auth.signUp({ email, password, options: { data: { nickname } } }) 
                                : await sb.auth.signInWithPassword({ email, password });
             
             if (!res.error) {
                 document.getElementById('ui').style.display = 'none';
                 document.getElementById('joystick').style.display = 'block';
-                startGame();
+                loadModel();
             } else { alert("錯誤: " + res.error.message); }
         }
 
-        function startGame() {
+        function loadModel() {
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
-                // 強制材質設定為自發光，解決黑色問題
+                player.position = new BABYLON.Vector3(0, 0, 0);
+                // 確保紋理不顯示為全白
                 meshes.forEach(m => {
-                    if (m.material) m.material.emissiveColor = new BABYLON.Color3(1, 1, 1);
+                    if (m.material) {
+                        m.material.emissiveColor = new BABYLON.Color3(0.5, 0.5, 0.5);
+                    }
                 });
                 camera.lockedTarget = player;
             });
         }
 
-        // 搖桿與移動
+        // 搖桿邏輯
         const joystick = document.getElementById('joystick');
         joystick.addEventListener('touchmove', (e) => {
             const touch = e.touches[0];
             const rect = joystick.getBoundingClientRect();
-            moveX = (touch.clientX - rect.left - 60) / 60;
-            moveZ = -(touch.clientY - rect.top - 60) / 60;
-            document.getElementById('stick').style.transform = `translate(${moveX*30}px, ${moveZ*-30}px)`;
+            moveX = (touch.clientX - rect.left - 50) / 50;
+            moveZ = -(touch.clientY - rect.top - 50) / 50;
+            document.getElementById('stick').style.transform = `translate(${moveX*20}px, ${moveZ*-20}px)`;
         });
-        joystick.addEventListener('touchend', () => { moveX = 0; moveZ = 0; document.getElementById('stick').style.transform = `translate(0px, 0px)`; });
+        joystick.addEventListener('touchend', () => { 
+            moveX = 0; moveZ = 0; 
+            document.getElementById('stick').style.transform = `translate(0px, 0px)`; 
+        });
 
         scene.onBeforeRenderObservable.add(() => {
             if (player) {
-                player.position.x += moveX * 0.3;
-                player.position.z += moveZ * 0.3;
+                player.position.x += moveX * 0.2;
+                player.position.z += moveZ * 0.2;
             }
         });
 
