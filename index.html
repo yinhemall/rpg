@@ -27,22 +27,23 @@
     <canvas id="renderCanvas"></canvas>
 
     <script>
-        // 強制清除任何殘留的登入狀態
-        localStorage.clear();
+        // --- 終極清理：防止自動恢復匿名 Session ---
+        // 刪除所有以 'sb-' 開頭的快取 (Supabase 儲存格式)
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('sb-')) localStorage.removeItem(key);
+        });
 
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         const uiGame = document.getElementById('ui-game');
 
+        // 初始化：明確關閉持久化以防鬼魂數據干擾
         const sbClient = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
             'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM',
-            { auth: { persistSession: true, storage: localStorage } }
+            { auth: { persistSession: false } } 
         );
-
-        // 確保沒有匿名帳號偷偷登入
-        sbClient.auth.signOut();
 
         let player = null;
         let userId = null;
@@ -71,7 +72,7 @@
                 userId = res.data.user.id;
                 document.getElementById('ui-auth').style.display = 'none';
                 uiGame.style.display = 'block';
-                uiGame.innerText = "歡迎 " + nickname + "！載入中...";
+                uiGame.innerText = "歡迎！載入中...";
                 initGame();
             }
         }
@@ -84,8 +85,6 @@
 
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, ps, sk, animationGroups) => {
                 player = meshes[0];
-                
-                // 動畫初始化
                 const idleAnim = scene.getAnimationGroupByName("still_test");
                 const walkAnim = scene.getAnimationGroupByName("walking_test");
                 if (idleAnim) idleAnim.start(true);
@@ -98,18 +97,10 @@
                         player.position.x += joystick.deltaPosition.x * 0.1;
                         player.position.z += joystick.deltaPosition.y * 0.1;
                         player.lookAt(player.position.add(new BABYLON.Vector3(joystick.deltaPosition.x, 0, joystick.deltaPosition.y)));
-
                         if (!isWalking) {
                             if (idleAnim) idleAnim.stop();
                             if (walkAnim) walkAnim.start(true);
                             isWalking = true;
-                        }
-
-                        if (Date.now() - lastSaveTime > 3000) {
-                            lastSaveTime = Date.now();
-                            sbClient.from('player_stars').upsert({
-                                user_id: userId, x: Math.round(player.position.x), z: Math.round(player.position.z)
-                            });
                         }
                     } else if (isWalking) {
                         if (walkAnim) walkAnim.stop();
@@ -117,7 +108,7 @@
                         isWalking = false;
                     }
                 });
-                uiGame.innerText = "遊戲運行中，推動搖桿移動";
+                uiGame.innerText = "遊戲運行中";
             });
             engine.runRenderLoop(() => scene.render());
         }
