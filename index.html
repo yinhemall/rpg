@@ -2,32 +2,64 @@
 <html>
 <head>
     <meta charset="utf-8">
+    <title>Minecraft Character Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
+    </style>
 </head>
-<body style="margin:0; overflow:hidden;">
-    <canvas id="renderCanvas" style="width:100%; height:100vh;"></canvas>
-    <div id="errorLog" style="position:absolute; top:10px; left:10px; color:red; background:white;"></div>
+<body>
+    <canvas id="renderCanvas"></canvas>
     <script>
+        // 1. Supabase 設定 (已填入你提供的資訊)
+        const supabaseUrl = 'https://njxwgiqhlwkybtmbmvto.supabase.co'; // 這是根據你提供的字串組合出的 URL
+        const supabaseKey = 'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM';
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        new BABYLON.ArcRotateCamera("cam", 0, 1, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, true);
+        
+        // 設定相機，防止角色飛走
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 載入模型並顯示詳細錯誤
-        BABYLON.SceneLoader.ImportMesh("", "", "minecraft.glb", scene, 
-            (meshes) => {
-                document.getElementById("errorLog").innerText = "模型載入成功！";
-            },
-            null,
-            (scene, message) => {
-                document.getElementById("errorLog").innerText = "錯誤: " + message;
-                console.error(message);
+        // 2. 虛擬搖桿初始化
+        const joystick = new BABYLON.VirtualJoystick(true);
+        let player = null;
+
+        // 3. 載入模型
+        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+            player = meshes[0];
+            console.log("角色載入成功！");
+        });
+
+        // 4. 遊戲移動與資料同步
+        scene.registerBeforeRender(() => {
+            if (player && joystick.pressed) {
+                const speed = 0.05; // 調整速度讓控制更順手
+                player.position.x += joystick.deltaPosition.x * speed;
+                player.position.z += joystick.deltaPosition.y * speed;
+
+                // 每當搖桿在運作時更新資料庫 (建議之後改為定時存檔)
+                savePosition(player.position.x, player.position.z);
             }
-        );
+        });
+
+        // 5. Supabase 存檔函數
+        async function savePosition(x, z) {
+            try {
+                await supabase.from('players').upsert({ id: 'player1', x: x, z: z });
+            } catch (err) {
+                console.error("存檔失敗，請確認資料表設定:", err);
+            }
+        }
 
         engine.runRenderLoop(() => scene.render());
+        window.addEventListener("resize", () => engine.resize());
     </script>
 </body>
 </html>
