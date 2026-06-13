@@ -9,7 +9,6 @@
     <style>
         body { margin: 0; padding: 0; overflow: hidden; font-family: sans-serif; }
         canvas { width: 100%; height: 100vh; display: block; }
-        /* 恢復登入 UI */
         #ui { position: absolute; top: 20%; left: 50%; transform: translateX(-50%); background: #222; color: white; padding: 20px; border-radius: 10px; z-index: 10; text-align: center; }
         input { display: block; margin: 10px auto; color: black; padding: 5px; }
         button { cursor: pointer; padding: 10px 20px; margin: 5px; background: #555; color: white; border: none; border-radius: 5px; }
@@ -40,30 +39,21 @@
             { auth: { persistSession: false } }
         );
 
-        // 登入邏輯
+        let player; // 定義全域角色變數
+        const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+
         async function handleAction(type) {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
-            let res;
-            if (type === 'signUp') {
-                res = await sb.auth.signUp({ email, password });
-            } else {
-                res = await sb.auth.signInWithPassword({ email, password });
-            }
-            
+            let res = type === 'signUp' ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
             if (!res.error) {
-                document.getElementById('ui').style.display = 'none'; // 隱藏 UI
-                startGame(); // 啟動遊戲模型
-            } else {
-                alert("錯誤: " + res.error.message);
-            }
+                document.getElementById('ui').style.display = 'none';
+                startGame();
+            } else { alert("錯誤: " + res.error.message); }
         }
 
-        // 遊戲場景初始化
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        const camera = new BABYLON.ArcRotateCamera("cam", 0, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-        
         const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
         ground.material = new BABYLON.StandardMaterial("gMat", scene);
         ground.material.diffuseColor = new BABYLON.Color3(0, 0.5, 0);
@@ -71,11 +61,26 @@
         function startGame() {
             document.getElementById("debug").innerText = "模型載入中...";
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                document.getElementById("debug").innerText = "模型已載入!";
-                meshes.forEach(m => {
-                    m.position = new BABYLON.Vector3(0, 2, 0);
-                    m.scaling = new BABYLON.Vector3(2, 2, 2);
-                });
+                document.getElementById("debug").innerText = "角色已生成 (WASD移動)";
+                player = meshes[0]; // 假設第一個網格為根節點
+                player.scaling = new BABYLON.Vector3(2, 2, 2);
+                player.position = new BABYLON.Vector3(0, 0.5, 0); // 貼地高度
+                camera.lockedTarget = player; // 【攝影機追隨】
+            });
+
+            // 【移動邏輯】
+            let inputMap = {};
+            scene.actionManager = new BABYLON.ActionManager(scene);
+            scene.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnKeyDownTrigger, evt => inputMap[evt.sourceEvent.key] = true));
+            scene.actionManager.registerAction(new BABYLON.ExecuteCodeAction(BABYLON.ActionManager.OnKeyUpTrigger, evt => inputMap[evt.sourceEvent.key] = false));
+
+            scene.onBeforeRenderObservable.add(() => {
+                if (!player) return;
+                const speed = 0.2;
+                if (inputMap["w"]) player.position.z += speed;
+                if (inputMap["s"]) player.position.z -= speed;
+                if (inputMap["a"]) player.position.x -= speed;
+                if (inputMap["d"]) player.position.x += speed;
             });
         }
 
