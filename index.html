@@ -11,11 +11,11 @@
     <style>
         body { margin: 0; overflow: hidden; background: #000; touch-action: none; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; }
-        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; z-index: 100; border-radius: 15px; width: 80%; text-align: center; }
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; border-radius: 15px; width: 80%; text-align: center; z-index: 100; }
         input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #222; color: #fff; border: 1px solid #444; }
-        button { padding: 10px 20px; margin: 5px; color: #0ff; background: transparent; border: 1px solid #0ff; cursor: pointer; }
+        button { padding: 10px 20px; margin: 5px; color: #0ff; background: transparent; border: 1px solid #0ff; }
         #joystick { position: absolute; bottom: 50px; left: 50px; width: 100px; height: 100px; border: 2px solid #0ff; border-radius: 50%; display: none; z-index: 50; }
-        #stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: white; border-radius: 50%; pointer-events: none; }
+        #stick { position: absolute; top: 25px; left: 25px; width: 50px; height: 50px; background: white; border-radius: 50%; }
     </style>
 </head>
 <body>
@@ -48,26 +48,23 @@
         }
 
         async function processAuth() {
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const nick = document.getElementById('nickname').value;
             try {
-                const { error } = isSignUp ? await sb.auth.signUp({ email, password, options: { data: { nickname: nick } } }) : await sb.auth.signInWithPassword({ email, password });
+                const email = document.getElementById('email').value;
+                const password = document.getElementById('password').value;
+                const { error } = isSignUp ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
                 if (error) throw error;
+                
                 document.getElementById('ui').style.display = 'none';
                 document.getElementById('joystick').style.display = 'block';
-                loadModel();
-            } catch (err) { alert(err.message); }
-        }
-
-        function loadModel() {
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                player = meshes[0];
-                player.scaling = new BABYLON.Vector3(2, 2, 2);
-                const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, player.position, scene);
-                camera.attachControl(canvas, true);
-                console.log("模型已載入");
-            }, null, (s, m) => { alert("模型載入失敗，檔案路徑可能錯誤: " + m); });
+                
+                // 登入成功後再開始遊戲
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+                    player = meshes[0];
+                    player.scaling = new BABYLON.Vector3(2, 2, 2);
+                    const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, player.position, scene);
+                    camera.attachControl(canvas, true);
+                });
+            } catch (err) { alert("錯誤: " + err.message); }
         }
 
         engine.runRenderLoop(() => scene.render());
