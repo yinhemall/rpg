@@ -2,31 +2,46 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Game</title>
+    <title>My Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; }
-        #debug { position: absolute; top: 10px; left: 10px; color: white; background: red; z-index: 100; }
+        body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
+        #debug { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); z-index: 100; pointer-events: none; }
     </style>
 </head>
 <body>
-    <div id="debug">測試中...</div>
+    <div id="debug">初始化中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
         const debug = document.getElementById('debug');
+        
+        // 1. 初始化 Babylon.js
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        new BABYLON.ArcRotateCamera("cam", 0, 1, 5, BABYLON.Vector3.Zero(), scene).attachControl(canvas, true);
+        // 設定相機 (加上最後一個參數 false 讓滑動不會亂轉)
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, false); 
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, 
-            () => { debug.innerText = "模型載入成功"; },
-            null,
-            (s, m) => { debug.innerText = "錯誤: " + m; }
-        );
+        // 2. 嘗試載入模型
+        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+            window.player = meshes[0];
+            debug.innerText = "模型載入成功，準備同步資料庫...";
+            
+            // 3. 嘗試初始化 Supabase
+            try {
+                const supabase = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM');
+                debug.innerText = "系統就緒，可以開始遊戲！";
+            } catch(e) {
+                debug.innerText = "Supabase 連線失敗";
+            }
+        }, null, (s, m) => {
+            debug.innerText = "載入錯誤: " + m;
+        });
 
         engine.runRenderLoop(() => scene.render());
     </script>
