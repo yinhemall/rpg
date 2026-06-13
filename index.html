@@ -8,12 +8,15 @@
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #222; touch-action: none; }
-        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 25px; border: 1px solid #0ff; color: #fff; text-align: center; z-index: 100; border-radius: 15px; width: 80%; max-width: 300px; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; }
+        #renderCanvas { width: 100%; height: 100%; display: block; touch-action: none; }
+        
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 25px; border: 1px solid #0ff; color: #fff; text-align: center; z-index: 100; border-radius: 15px; width: 85%; max-width: 300px; }
         input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #000; color: #fff; border: 1px solid #444; }
         button { padding: 10px 20px; margin: 5px; background: transparent; color: #0ff; border: 1px solid #0ff; cursor: pointer; }
+        
         #joystick { position: absolute; bottom: 50px; left: 50px; width: 120px; height: 120px; border: 2px solid #0ff; border-radius: 50%; display: none; z-index: 50; touch-action: none; }
-        #stick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: white; border-radius: 50%; }
+        #stick { position: absolute; top: 35px; left: 35px; width: 50px; height: 50px; background: white; border-radius: 50%; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -32,13 +35,15 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0.2, 0.2, 0.2, 1);
+        scene.clearColor = new BABYLON.Color4(0.1, 0.1, 0.1, 1);
         
-        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        // 使用極低強度的環境光，徹底消除刺眼亮塊
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        light.intensity = 0.5;
+
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
 
-        // 建立一個明確的地板
         const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 200, height: 200}, scene);
         const gMat = new BABYLON.StandardMaterial("gMat", scene);
         gMat.diffuseColor = new BABYLON.Color3(0.3, 0.3, 0.3);
@@ -51,6 +56,7 @@
             isSignUp = !isSignUp;
             document.getElementById('ui-title').innerText = isSignUp ? "系統註冊" : "系統登入";
             document.getElementById('main-btn').innerText = isSignUp ? "註冊" : "登入";
+            document.getElementById('toggle-btn').innerText = isSignUp ? "切換登入" : "切換註冊";
             document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
         }
 
@@ -68,6 +74,7 @@
         }
 
         function loadModel() {
+            if (player) return;
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes, _, __, animationGroups) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
@@ -86,11 +93,9 @@
             currentAnim = name;
         }
 
-        // 修正搖桿邏輯：使用 offset 確保中心點正確
         const joystick = document.getElementById('joystick');
         joystick.addEventListener('touchmove', (e) => {
             const t = e.touches[0], r = joystick.getBoundingClientRect();
-            // 計算滑動偏移量，範圍限制在 -1 到 1
             moveX = Math.max(-1, Math.min(1, (t.clientX - (r.left + 60)) / 60));
             moveZ = Math.max(-1, Math.min(1, (t.clientY - (r.top + 60)) / 60));
             document.getElementById('stick').style.transform = `translate(${moveX*30}px, ${moveZ*30}px)`;
@@ -103,7 +108,6 @@
         scene.onBeforeRenderObservable.add(() => {
             if (player) {
                 if (Math.abs(moveX) > 0.1 || Math.abs(moveZ) > 0.1) {
-                    // 速度調快：0.3 (原為0.2)
                     player.position.x += moveX * 0.3;
                     player.position.z -= moveZ * 0.3;
                     playAnim("walk");
