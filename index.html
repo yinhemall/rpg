@@ -38,13 +38,12 @@
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let isSignUp = false;
+        let isSignUp = false, player = null;
 
         function toggleMode() {
             isSignUp = !isSignUp;
             document.getElementById('ui-title').innerText = isSignUp ? "系統註冊" : "系統登入";
             document.getElementById('main-btn').innerText = isSignUp ? "註冊" : "登入";
-            // 關鍵邏輯：註冊時顯示暱稱，登入時隱藏
             document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
         }
 
@@ -52,11 +51,9 @@
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
             const nick = document.getElementById('nickname').value;
-            
             try {
                 const { error } = isSignUp ? await sb.auth.signUp({ email, password, options: { data: { nickname: nick } } }) : await sb.auth.signInWithPassword({ email, password });
                 if (error) throw error;
-                
                 document.getElementById('ui').style.display = 'none';
                 document.getElementById('joystick').style.display = 'block';
                 loadModel();
@@ -65,11 +62,12 @@
 
         function loadModel() {
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                const player = meshes[0];
+                player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
                 const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, player.position, scene);
                 camera.attachControl(canvas, true);
-            }, null, (s, m) => { alert("檔案載入錯誤: " + m); });
+                console.log("模型已載入");
+            }, null, (s, m) => { alert("模型載入失敗，檔案路徑可能錯誤: " + m); });
         }
 
         engine.runRenderLoop(() => scene.render());
