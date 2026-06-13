@@ -33,9 +33,11 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
         
-        // 燈光強度調低，避免過曝
+        // 恢復自然環境光，移除局部聚光燈效果
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.6; 
+        light.intensity = 0.9; 
+        light.diffuse = new BABYLON.Color3(1, 1, 1);
+        light.groundColor = new BABYLON.Color3(0.5, 0.5, 0.5);
         
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
@@ -64,14 +66,13 @@
             const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
             ground.position.y = 0;
             const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
-            groundMat.diffuseColor = new BABYLON.Color3(0.2, 0.5, 0.2); // 綠色草地
+            groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.6, 0.3);
             ground.material = groundMat;
 
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 if(meshes.length > 0) {
                     const player = meshes[0];
                     player.scaling = new BABYLON.Vector3(2, 2, 2);
-                    // 調整這裡的數值來修正懸空高度，如果還是浮著，將 0 改為負數
                     player.position.y = 0; 
                     console.log("模型載入完成");
                 }
