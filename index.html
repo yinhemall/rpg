@@ -2,17 +2,17 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>My Game</title>
+    <title>Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #ui { position: absolute; top: 10px; left: 10px; color: #0f0; background: rgba(0,0,0,0.7); padding: 10px; font-family: monospace; z-index: 999; }
+        #ui { position: absolute; top: 10px; left: 10px; color: #fff; background: rgba(0,0,0,0.5); padding: 10px; z-index: 999; }
     </style>
 </head>
 <body>
-    <div id="ui">搖桿已啟動，移動看看！</div>
+    <div id="ui">啟動中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
         const ui = document.getElementById('ui');
@@ -20,32 +20,31 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        // 攝影機與光源
+        // 攝影機設定
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 5, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, false);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 初始化 Supabase
+        // 初始化 Supabase (已填入你的 Key)
         const sbClient = supabase.createClient(
             'https://njxwgiqhlwkybtmbmvto.supabase.co', 
             'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
         );
 
-        // 加入虛擬搖桿
         const joystick = new BABYLON.VirtualJoystick(true);
         let player = null;
 
         BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
             player = meshes[0];
+            ui.innerText = "控制成功！搖桿已啟動";
         });
 
-        // 核心迴圈：處理移動與存檔
         scene.registerBeforeRender(() => {
             if (player && joystick.pressed) {
                 player.position.x += joystick.deltaPosition.x * 0.05;
                 player.position.z += joystick.deltaPosition.y * 0.05;
 
-                // 寫入資料庫
+                // 嘗試存檔
                 sbClient.from('player_stars').upsert({ id: 'player1', x: player.position.x, z: player.position.z })
                 .then(res => { if(res.error) ui.innerText = "存檔失敗: " + res.error.message; });
             }
