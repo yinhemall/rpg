@@ -3,19 +3,18 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Minecraft RPG</title>
     <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
     <script>eruda.init();</script>
-    
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; touch-action: none; }
-        #renderCanvas { width: 100%; height: 100%; display: block; position: fixed; }
-        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 25px; border: 1px solid #0ff; color: #fff; text-align: center; z-index: 100; border-radius: 15px; width: 85%; max-width: 300px; }
-        input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #000; color: #fff; border: 1px solid #444; }
-        button { padding: 10px 20px; margin: 5px; background: transparent; color: #0ff; border: 1px solid #0ff; cursor: pointer; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; }
+        #renderCanvas { width: 100vw; height: 100vh; display: block; }
+        /* 登入 UI 樣式 */
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; z-index: 100; border-radius: 15px; width: 80%; max-width: 300px; text-align: center; }
+        input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #222; color: #fff; border: 1px solid #444; }
+        button { padding: 10px 20px; margin: 5px; color: #0ff; background: transparent; border: 1px solid #0ff; cursor: pointer; }
     </style>
 </head>
 <body>
@@ -24,7 +23,7 @@
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
         <input type="text" id="nickname" placeholder="設置暱稱" style="display:none;">
-        <button id="main-btn" onclick="handleAction()">登入</button>
+        <button id="main-btn" onclick="handleAuth()">登入</button>
         <button onclick="toggleMode()">切換註冊/登入</button>
     </div>
     <canvas id="renderCanvas"></canvas>
@@ -34,7 +33,8 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
-        
+        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let isSignUp = false;
 
@@ -45,29 +45,34 @@
             document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
         }
 
-        async function handleAction() {
+        async function handleAuth() {
             const email = document.getElementById('email').value;
             const password = document.getElementById('password').value;
+            const nickname = document.getElementById('nickname').value;
+            
             try {
-                let res = isSignUp ? await sb.auth.signUp({ email, password }) : await sb.auth.signInWithPassword({ email, password });
-                if (res.error) throw res.error;
-                document.getElementById('ui').style.display = 'none'; // 登入後隱藏 UI
+                const { error } = isSignUp ? 
+                    await sb.auth.signUp({ email, password, options: { data: { nickname } } }) : 
+                    await sb.auth.signInWithPassword({ email, password });
+                
+                if (error) throw error;
+                
+                // 登入成功，隱藏 UI 並載入模型
+                document.getElementById('ui').style.display = 'none';
                 loadModel();
-            } catch (err) { alert("登入錯誤: " + err.message); }
+            } catch (err) { alert("登入失敗: " + err.message); }
         }
 
         function loadModel() {
-            const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
-            camera.attachControl(canvas, true);
-            new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-            
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-                meshes[0].scaling = new BABYLON.Vector3(2, 2, 2);
-            });
+                const player = meshes[0];
+                player.scaling = new BABYLON.Vector3(2, 2, 2);
+                const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, player.position, scene);
+                camera.attachControl(canvas, true);
+            }, null, (s, m) => { alert("模型載入錯誤: " + m); });
         }
 
         engine.runRenderLoop(() => scene.render());
-        window.addEventListener("resize", () => engine.resize());
     </script>
 </body>
 </html>
