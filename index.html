@@ -2,44 +2,54 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Game</title>
+    <title>My Game</title>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body, canvas { width: 100%; height: 100vh; margin: 0; padding: 0; overflow: hidden; touch-action: none; }
-        #debug { position: absolute; top: 10px; left: 10px; color: white; background: black; padding: 5px; z-index: 100; }
+        #debug { position: absolute; top: 10px; left: 10px; color: white; background: rgba(0,0,0,0.5); z-index: 100; pointer-events: none; font-size: 14px; }
     </style>
 </head>
 <body>
-    <div id="debug">啟動中...</div>
+    <div id="debug">準備中...</div>
     <canvas id="renderCanvas"></canvas>
     <script>
         const debug = document.getElementById('debug');
-        
-        // 5秒保護機制
-        setTimeout(() => { if(debug.innerText === "啟動中...") debug.innerText = "連線逾時，請確認網路"; }, 5000);
-
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene).attachControl(canvas, false);
+        // 攝影機：固定視角
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 10, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, false);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // 載入模型
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
-            debug.innerText = "模型載入成功，連線資料庫...";
-            
-            const supabase = supabase.createClient(
-                'https://njxwgiqhlwkybtmbmvto.supabase.co', 
-                'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
-            );
+        // 初始化 Supabase
+        const supabase = supabase.createClient(
+            'https://njxwgiqhlwkybtmbmvto.supabase.co', 
+            'Sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM'
+        );
 
-            supabase.from('player_stars').select('*').limit(1).then(res => {
-                if(res.error) debug.innerText = "資料庫錯誤: " + res.error.message;
-                else debug.innerText = "連線成功！";
-            });
+        // 建立虛擬搖桿
+        const joystick = new BABYLON.VirtualJoystick(true);
+        let player = null;
+
+        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
+            player = meshes[0];
+            debug.innerText = "成功！推動左下角移動";
+        });
+
+        scene.registerBeforeRender(() => {
+            if (player && joystick.pressed) {
+                // 搖桿控制移動
+                player.position.x += joystick.deltaPosition.x * 0.1;
+                player.position.z += joystick.deltaPosition.y * 0.1;
+
+                // 即時存檔
+                supabase.from('player_stars').upsert({ id: 'player1', x: player.position.x, z: player.position.z })
+                .then(res => { if(res.error) debug.innerText = "存檔錯誤: " + res.error.message; });
+            }
         });
 
         engine.runRenderLoop(() => scene.render());
