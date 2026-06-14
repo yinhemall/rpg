@@ -31,13 +31,19 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        // --- 改用 ArcRotateCamera 但降低自動鎖定敏感度 ---
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
-        camera.inputs.attached.pointers.buttons = [0]; // 只允許左鍵/單指旋轉
-        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
+        // 燈光與環境
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        
+        // 攝影機設定：改用 FollowCamera 以確保平滑跟隨且固定背面視角
+        const camera = new BABYLON.FollowCamera("FollowCam", new BABYLON.Vector3(0, 5, -10), scene);
+        camera.radius = 10;
+        camera.heightOffset = 3;
+        camera.rotationOffset = 180; 
+        camera.cameraAcceleration = 0.05;
+        camera.maxCameraSpeed = 20;
+        camera.attachControl(canvas, true);
 
+        // GUI 搖桿
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
@@ -53,6 +59,7 @@
         stick.background = "white";
         stickBase.addControl(stick);
 
+        // 登入邏輯
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null };
 
@@ -71,10 +78,15 @@
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
                 BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); });
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
+                    player = m[0]; 
+                    player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                    camera.lockedTarget = player; // 將相機鎖定在角色身上
+                });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
+        // 觸控事件
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
                 if (info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
@@ -82,8 +94,7 @@
                     moveData.pointerId = info.event.pointerId;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
-                let centerX = 175, centerY = window.innerHeight - 175;
-                let dx = info.event.clientX - centerX, dy = info.event.clientY - centerY;
+                let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                 let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
                 let angle = Math.atan2(dy, dx);
                 stick.left = Math.cos(angle) * dist;
@@ -95,25 +106,14 @@
             }
         });
 
+        // 渲染循環
         scene.registerBeforeRender(() => {
-            if (player) {
-                // 這裡最關鍵：不要強制設定 camera.target = player，而是讓相機跟隨
-                // 這能避免移動時視角被強行拉動，導致你看起來像一直看著背面
-                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1, 0)), 0.1);
-
-                if (moveData.active) {
-                    // 使用相機的正確旋轉計算方向，並且不影響相機本身的視角
-                    const yaw = camera.alpha;
-                    const fwd = new BABYLON.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
-                    const right = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
-                    
-                    const moveDir = fwd.scale(-moveData.y).add(right.scale(moveData.x));
-                    player.position.addInPlace(moveDir.scale(0.15));
-                    
-                    // 讓角色轉向移動方向
-                    const targetRotation = Math.atan2(moveData.x, -moveData.y) + yaw;
-                    player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetRotation, 0.2);
-                }
+            if (player && moveData.active) {
+                const forward = player.forward;
+                const right = player.right;
+                player.position.addInPlace(forward.scale(-moveData.y * 0.15));
+                player.position.addInPlace(right.scale(moveData.x * 0.15));
+                player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.rotation.y;
             }
         });
 
