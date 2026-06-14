@@ -2,14 +2,15 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; }
-        #renderCanvas { width: 100vw; height: 100vh; display: block; }
+        /* 確保 Canvas 填滿所有可用空間，避免變扁 */
+        #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
         #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; z-index: 999; border-radius: 15px; width: 80%; text-align: center; }
         input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #222; color: #fff; border: 1px solid #444; }
         button { padding: 10px 20px; margin: 5px; color: #0ff; background: transparent; border: 1px solid #0ff; }
@@ -31,12 +32,13 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        // 攝影機與燈光
+        // --- 修正：更嚴格的相機鎖定 ---
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
+        camera.lowerRadiusLimit = 15; // 限制最近距離
+        camera.upperRadiusLimit = 15; // 限制最遠距離，確保視角固定
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // GUI 搖桿
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
@@ -55,7 +57,6 @@
         let player = null, moveData = { active: false, x: 0, y: 0 };
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
 
-        // --- 登入邏輯 ---
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
             document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
@@ -67,10 +68,12 @@
             document.getElementById('ui').style.display = 'none';
             stickBase.isVisible = true;
             BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => player = m[0]);
+            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => {
+                player = m[0];
+                player.scaling = new BABYLON.Vector3(2, 2, 2);
+            });
         }
 
-        // --- 修正：更精確的移動處理 ---
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && info.event.clientX < window.innerWidth / 2) {
                 moveData.active = true;
@@ -82,29 +85,32 @@
                 let angle = Math.atan2(y, x);
                 stick.left = Math.cos(angle) * dist;
                 stick.top = Math.sin(angle) * dist;
-                moveData.x = x / 40;
-                moveData.y = y / 40;
+                // --- 調整移動靈敏度：由 0.2 改為 0.05 ---
+                moveData.x = (x / 40) * 0.05;
+                moveData.y = (y / 40) * 0.05;
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
                 moveData.active = false; stick.left = 0; stick.top = 0;
             }
         });
 
-        // --- 修正：移動與轉向不干擾 ---
         scene.registerBeforeRender(() => {
             if (player) {
-                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1, 0)), 0.1);
+                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position, 0.1);
                 if (moveData.active) {
                     const fwd = camera.getForwardRay().direction; fwd.y = 0; fwd.normalize();
                     const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up());
-                    player.position.addInPlace(fwd.scale(-moveData.y * 0.2));
-                    player.position.addInPlace(right.scale(moveData.x * 0.2));
-                    // 關鍵：將旋轉鎖定在目標方向，避免隨機亂轉
+                    player.position.addInPlace(fwd.scale(-moveData.y * 10)); // 對應調整縮放係數
+                    player.position.addInPlace(right.scale(moveData.x * 10));
                     player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI/2;
                 }
             }
         });
 
         engine.runRenderLoop(() => scene.render());
+        // 修正：當手機轉向時，強制重新計算大小
+        window.addEventListener("resize", () => {
+            engine.resize();
+        });
     </script>
 </body>
 </html>
