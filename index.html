@@ -32,10 +32,10 @@
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // --- 核心修正：改用 ArcRotateCamera 實現自由視角 ---
+        // --- 設定攝影機 ---
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 3, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
-        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15; // 保持固定距離
+        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -94,15 +94,17 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 將相機中心鎖定在玩家頭部高度
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
 
                 if (moveData.active) {
-                    // 以相機的 alpha 水平角度來計算玩家的移動方向
-                    const angle = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI / 2;
-                    player.position.x += Math.cos(angle) * 0.15;
-                    player.position.z += Math.sin(angle) * 0.15;
-                    player.rotation.y = -angle + Math.PI / 2;
+                    // --- 修正移動邏輯 ---
+                    // 使用相機的 alpha 水平旋轉來重新對齊輸入方向
+                    const inputAngle = Math.atan2(moveData.x, -moveData.y);
+                    const finalAngle = inputAngle + camera.alpha + Math.PI / 2;
+                    
+                    player.position.x += Math.cos(finalAngle) * 0.15;
+                    player.position.z += Math.sin(finalAngle) * 0.15;
+                    player.rotation.y = -finalAngle + Math.PI / 2;
                 }
             }
         });
