@@ -31,13 +31,13 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        
-        // 1. ArcRotateCamera 是最標準的第三人稱相機
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
+
+        // --- MC 風格：ArcRotateCamera ---
+        // 我們將 beta 限制在一個範圍內，避免視角過度俯仰導致的問題
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        // 限制相機轉動手感，讓觸控轉動更穩定
-        camera.angularSensibilityX = camera.angularSensibilityY = 800;
+        camera.upperBetaLimit = Math.PI / 2.1; // 防止相機穿地
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -76,13 +76,9 @@
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
-        // 觸控分離邏輯
         scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                // 只有點擊左下角區域才會啟動搖桿
-                if (info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
-                    moveData.active = true; moveData.pointerId = info.event.pointerId;
-                }
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
+                moveData.active = true; moveData.pointerId = info.event.pointerId;
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
                 let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                 let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
@@ -98,20 +94,20 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
+                // 1. 視角跟隨：讓相機永遠以角色為中心
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
+
                 if (moveData.active) {
-                    // 核心：基於攝影機的視角方向來計算移動
-                    // 獲取攝影機平面方向 (忽略垂直角度)
-                    const fwd = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha));
-                    const right = new BABYLON.Vector3(fwd.z, 0, -fwd.x); // 計算右側向量
+                    // 2. 移動邏輯：只投影在 Y=0 平面 (忽略相機傾斜)
+                    const forward = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha)).normalize();
+                    const right = new BABYLON.Vector3(forward.z, 0, -forward.x).normalize();
                     
-                    // 組合移動向量
-                    const moveVector = fwd.scale(-moveData.y).add(right.scale(moveData.x));
-                    player.position.addInPlace(moveVector.scale(0.15));
+                    const moveDir = forward.scale(-moveData.y).add(right.scale(moveData.x));
+                    player.position.addInPlace(moveDir.scale(0.15));
                     
-                    // 讓玩家平滑轉向移動方向
-                    const targetAngle = Math.atan2(moveVector.x, moveVector.z);
-                    player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetAngle, 0.2);
+                    // 3. 轉向邏輯：讓模型轉向行進方向
+                    const targetRotation = Math.atan2(moveDir.x, moveDir.z);
+                    player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetRotation, 0.2);
                 }
             }
         });
