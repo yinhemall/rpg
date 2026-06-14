@@ -97,12 +97,13 @@
             document.getElementById('start-ui').style.display = 'none';
             stickBase.isVisible = true;
 
-            // 產生 30x30 地面
+            // 產生 30x30 地面，將 tile 放大並以間隔 2 排列
             for(let x = -15; x < 15; x++) {
                 for(let z = -15; z < 15; z++) {
                     BABYLON.SceneLoader.ImportMesh("", "./", "tile.glb", scene, (meshes) => {
                         let tile = meshes[0];
-                        tile.position = new BABYLON.Vector3(x, 0, z);
+                        tile.scaling = new BABYLON.Vector3(2, 2, 2); // 放大兩倍
+                        tile.position = new BABYLON.Vector3(x * 2, 0, z * 2); // 間隔調整為 2
                         tile.checkCollisions = true;
                     });
                 }
