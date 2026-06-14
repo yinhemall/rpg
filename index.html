@@ -32,7 +32,7 @@
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // 設定攝影機
+        // 攝影機：ArcRotateCamera
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         camera.lowerRadiusLimit = 10;
@@ -65,15 +65,25 @@
         }
 
         async function handleAuth() {
+            const btn = document.getElementById('main-btn');
+            btn.disabled = true;
             try {
                 let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
+                
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
-                BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); });
-            } catch (err) { alert("登入失敗: " + err.message); }
+                
+                if (!scene.getMeshByName("ground")) BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
+                    player = m[0]; 
+                    player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                });
+            } catch (err) { 
+                alert("登入失敗: " + err.message); 
+                btn.disabled = false;
+            }
         }
 
         scene.onPointerObservable.add((info) => {
@@ -81,4 +91,38 @@
                 moveData.active = true; moveData.pointerId = info.event.pointerId;
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
                 let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
-                let dist = Math.min
+                let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
+                let angle = Math.atan2(dy, dx);
+                stick.left = Math.cos(angle) * dist;
+                stick.top = Math.sin(angle) * dist;
+                moveData.x = (Math.cos(angle) * dist) / 40;
+                moveData.y = (Math.sin(angle) * dist) / 40;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP && info.event.pointerId === moveData.pointerId) {
+                moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0;
+            }
+        });
+
+        scene.registerBeforeRender(() => {
+            if (player) {
+                camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
+                if (moveData.active) {
+                    const fwd = camera.getTarget().subtract(camera.position);
+                    fwd.y = 0; fwd.normalize();
+                    const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up()).normalize();
+                    const moveDir = fwd.scale(-moveData.y).add(right.scale(moveData.x));
+                    moveDir.y = 0;
+                    
+                    player.position.addInPlace(moveDir.scale(0.15));
+                    if (moveDir.length() > 0.01) {
+                        const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+                        player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetAngle, 0.2);
+                    }
+                }
+            }
+        });
+
+        engine.runRenderLoop(() => scene.render());
+        window.addEventListener("resize", () => engine.resize());
+    </script>
+</body>
+</html>
