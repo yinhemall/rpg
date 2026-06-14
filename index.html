@@ -8,37 +8,42 @@
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* 修正兩側白邊：確保 body 填滿視窗 */
+        /* 確保填滿全螢幕並移除白邊 */
         body { margin: 0; padding: 0; overflow: hidden; background: #87CEEB; touch-action: none; width: 100vw; height: 100vh; overscroll-behavior: none; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
         
-        /* Minecraft 風格 UI：粗邊框、灰黑色調、放大面板 */
-        #ui { 
+        /* MC 風格面板樣式 */
+        .ui-panel { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: #2a2a2a; padding: 40px; border: 6px solid #fff; 
-            color: #fff; z-index: 999; border-radius: 4px; width: 70%; max-width: 400px; 
-            text-align: center; box-shadow: 10px 10px 0px rgba(0,0,0,0.5);
+            background: #2a2a2a; padding: 25px; border: 4px solid #fff; 
+            color: #fff; z-index: 999; border-radius: 4px; width: 280px; 
+            text-align: center; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
         }
         input { 
-            display: block; margin: 20px auto; padding: 15px; width: 90%; 
-            background: #000; color: #fff; border: 4px solid #fff; font-size: 18px;
+            display: block; margin: 12px auto; padding: 10px; width: 85%; 
+            background: #000; color: #fff; border: 3px solid #fff; font-size: 16px;
         }
         button { 
-            padding: 15px 30px; margin: 10px; color: #fff; background: #4a4a4a; 
-            border: 4px solid #fff; font-size: 18px; cursor: pointer; text-transform: uppercase;
+            padding: 10px 20px; margin: 8px; color: #fff; background: #4a4a4a; 
+            border: 3px solid #fff; font-size: 16px; cursor: pointer; text-transform: uppercase;
         }
-        button:active { background: #666; }
     </style>
 </head>
 <body>
-    <div id="ui">
-        <h2 id="ui-title">系統登入</h2>
+    <div id="auth-ui" class="ui-panel">
+        <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
         <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
         <button id="main-btn" onclick="handleAuth()">登入</button>
-        <button onclick="toggleMode()">切換</button>
+        <button onclick="toggleMode()">登入/註冊</button>
     </div>
+
+    <div id="start-ui" class="ui-panel" style="display:none;">
+        <h3>準備好了嗎？</h3>
+        <button onclick="startGame()">進入遊戲</button>
+    </div>
+
     <canvas id="renderCanvas"></canvas>
 
     <script>
@@ -81,38 +86,43 @@
         }
 
         async function handleAuth() {
-            if (player) return;
             try {
                 let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
-                document.getElementById('ui').style.display = 'none';
-                stickBase.isVisible = true;
-
-                for(let x=-10; x<10; x++) {
-                    for(let z=-10; z<10; z++) {
-                        let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
-                        block.position = new BABYLON.Vector3(x, -0.5, z);
-                        let mat = new BABYLON.StandardMaterial("m", scene);
-                        mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
-                        block.material = mat;
-                    }
-                }
-
-                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
-                    player = m[0]; 
-                    player.scaling = new BABYLON.Vector3(2, 2, 2); 
-                    player.rotationQuaternion = null; 
-                    player.rotation.y = 0;
-                    anims.walk = scene.getAnimationGroupByName("walking_test");
-                    anims.still = scene.getAnimationGroupByName("still_test");
-                    if (anims.still) { anims.still.start(true); anims.current = "still"; }
-                });
+                // 成功後隱藏登入頁，顯示開始遊戲頁
+                document.getElementById('auth-ui').style.display = 'none';
+                document.getElementById('start-ui').style.display = 'block';
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
+        function startGame() {
+            document.getElementById('start-ui').style.display = 'none';
+            stickBase.isVisible = true;
+
+            for(let x=-10; x<10; x++) {
+                for(let z=-10; z<10; z++) {
+                    let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
+                    block.position = new BABYLON.Vector3(x, -0.5, z);
+                    let mat = new BABYLON.StandardMaterial("m", scene);
+                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                    block.material = mat;
+                }
+            }
+
+            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
+                player = m[0]; 
+                player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                player.rotationQuaternion = null; 
+                player.rotation.y = 0;
+                anims.walk = scene.getAnimationGroupByName("walking_test");
+                anims.still = scene.getAnimationGroupByName("still_test");
+                if (anims.still) { anims.still.start(true); anims.current = "still"; }
+            });
+        }
+
         scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && stickBase.isVisible) {
                 if (info.event.clientX < window.innerWidth / 2) { moveData.active = true; moveData.id = info.event.pointerId; }
                 else { rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX; }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
