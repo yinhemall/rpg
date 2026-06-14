@@ -31,12 +31,12 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-
-        // MC 風格攝影機：ArcRotateCamera
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
+        
+        // --- 核心修正：改用 ArcRotateCamera 實現自由視角 ---
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 3, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
-        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15; // 固定距離，像第三人稱背後視角
-
+        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15; // 保持固定距離
+        
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
@@ -75,8 +75,10 @@
         }
 
         scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
-                moveData.active = true; moveData.pointerId = info.event.pointerId;
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                if (info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
+                    moveData.active = true; moveData.pointerId = info.event.pointerId;
+                }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
                 let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                 let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
@@ -92,17 +94,15 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
+                // 將相機中心鎖定在玩家頭部高度
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
+
                 if (moveData.active) {
-                    // MC 移動核心邏輯：只取相機的水平角度 (alpha)
-                    const fwd = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha));
-                    const right = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
-                    
-                    const moveVector = fwd.scale(-moveData.y).add(right.scale(moveData.x));
-                    player.position.addInPlace(moveVector.scale(0.15));
-                    
-                    // 角色轉向移動方向
-                    player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha;
+                    // 以相機的 alpha 水平角度來計算玩家的移動方向
+                    const angle = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI / 2;
+                    player.position.x += Math.cos(angle) * 0.15;
+                    player.position.z += Math.sin(angle) * 0.15;
+                    player.rotation.y = -angle + Math.PI / 2;
                 }
             }
         });
