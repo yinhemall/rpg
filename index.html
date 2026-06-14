@@ -105,8 +105,9 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    // 同步邏輯：直接賦值給人物旋轉
-                    player.rotation.y += (info.event.clientX - rotData.lastX) * 0.005;
+                    // 使用 rotate 方法強制旋轉，避開屬性鎖定
+                    let delta = (info.event.clientX - rotData.lastX) * 0.01;
+                    player.rotate(BABYLON.Axis.Y, delta, BABYLON.Space.WORLD);
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
@@ -117,12 +118,14 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 強制同步鎖定：解決視角下墜與轉向不同步
                 camera.target = player.position.clone();
-                camera.beta = Math.PI / 3; // 固定仰角
-                camera.alpha = -player.rotation.y - Math.PI / 2; // 強制與人物旋轉對齊
+                camera.beta = Math.PI / 3; 
+                // 同步相機角度：根據 player 目前的旋轉四元數來計算 alpha
+                camera.alpha = -player.rotationQuaternion.toEulerAngles().y - Math.PI / 2;
                 
-                const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+                // 計算移動
+                let rotY = player.rotationQuaternion.toEulerAngles().y;
+                const fwd = new BABYLON.Vector3(Math.sin(rotY), 0, Math.cos(rotY));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
                 player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
             }
