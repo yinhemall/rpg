@@ -86,28 +86,33 @@
                 BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
-                    // **強行重置方向系統**
                     player.rotationQuaternion = null; 
-                    player.rotation.y = Math.PI; // 修正後的初始朝向
+                    player.rotation.y = 0; // 如果眼睛方向還是錯的，請改為 Math.PI
                 });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
         scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
-                if (rotData.active && info.event.pointerId === rotData.id && player) {
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                if (info.event.clientX < window.innerWidth / 2) {
+                    moveData.active = true; moveData.id = info.event.pointerId;
+                } else {
+                    rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX;
+                }
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
+                if (moveData.active && info.event.pointerId === moveData.id) {
+                    let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
+                    let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
+                    let angle = Math.atan2(dx, -dy);
+                    stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
+                    moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
+                } else if (rotData.active && info.event.pointerId === rotData.id && player) {
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                if (info.event.clientX >= window.innerWidth / 2) {
-                    rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX;
-                } else {
-                    moveData.active = true; moveData.id = info.event.pointerId;
-                }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
-                if (info.event.pointerId === rotData.id) rotData.active = false;
-                if (info.event.pointerId === moveData.id) { moveData.active = false; stick.left = 0; stick.top = 0; }
+                if (info.event.pointerId === moveData.id) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
+                if (info.event.pointerId === rotData.id) { rotData.active = false; }
             }
         });
 
