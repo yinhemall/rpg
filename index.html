@@ -8,38 +8,72 @@
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: sans-serif; }
+        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: 'Arial Rounded MT Bold', sans-serif; /* 使用更圓潤的字體 */ }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
-        /* 遊戲風 UI 樣式 */
+        
+        /* 樂高積木風格的介面容器 */
         .game-ui { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: #e6b873; padding: 25px; border: 6px solid #8b4513; 
-            color: #fff; z-index: 999; border-radius: 15px; width: 70%; text-align: center;
-            box-shadow: 0 10px 0 #5d2e0a;
+            background: #e10019; /* 樂高紅 */ padding: 30px; 
+            border: 6px solid #b30014; /* 深紅色積木邊框 */
+            color: #fff; z-index: 999; border-radius: 12px; width: 75%; text-align: center;
+            box-shadow: 0 10px 0 #8c0010, 0 10px 20px rgba(0,0,0,0.5); /* 積木厚度陰影與外部陰影 */
         }
-        input { display: block; margin: 15px auto; padding: 12px; width: 85%; background: #fff; border: 3px solid #8b4513; border-radius: 8px; color: #333; font-weight: bold; }
-        button { 
-            padding: 12px 25px; margin: 10px; cursor: pointer;
-            background: #ffd700; border: 4px solid #b8860b; border-radius: 10px;
-            color: #8b4513; font-weight: bold; font-size: 16px;
-            box-shadow: 0 4px 0 #b8860b;
+        /* 模擬介面頂部的樂高顆粒 */
+        .game-ui:before {
+            content: ""; position: absolute; top: -18px; left: 10px; right: 10px; height: 20px;
+            background-image: radial-gradient(circle at center, #8c0010 6px, transparent 7px);
+            background-size: 20px 20px;
         }
-        button:active { transform: translateY(4px); box-shadow: none; }
+
+        h2 { color: #fff; margin-top: 10px; text-shadow: 2px 2px 0 #8c0010; font-size: 24px; text-transform: uppercase; }
+
+        /* 模擬樂高積木的輸入框 */
+        input { 
+            display: block; margin: 15px auto; padding: 12px; width: 85%; 
+            background: #fff; border: 4px solid #fff; border-radius: 8px; 
+            color: #333; font-weight: bold; font-size: 16px;
+            box-shadow: inset 0 3px 0 rgba(0,0,0,0.2), 0 4px 0 rgba(255,255,255,0.5); /* 內部凹陷與外部凸起陰影 */
+        }
+        input:focus { outline: none; border-color: #0055a5; /* 藍色積木強調色 */ }
+
+        /* 模擬樂高積木按鈕 */
+        .lego-btn { 
+            position: relative; display: inline-block; padding: 15px 30px; margin: 10px; cursor: pointer;
+            color: #fff; font-weight: bold; font-size: 18px; text-transform: uppercase; text-decoration: none;
+            background: #ffd700; /* 樂高黃 */ border: 5px solid #ffd700; border-radius: 10px;
+            box-shadow: 0 6px 0 #ccac00, 0 6px 10px rgba(0,0,0,0.3); /* 積木厚度陰影 */
+            text-shadow: 1px 1px 0 rgba(0,0,0,0.3); transition: none;
+        }
+        /* 模擬按鈕表面的樂高顆粒 */
+        .lego-btn:before {
+            content: ""; position: absolute; top: -10px; left: 8px; right: 8px; height: 12px;
+            background-image: radial-gradient(circle at center, #ccac00 4px, transparent 5px);
+            background-size: 16px 16px;
+        }
+        /* 按下按鈕的感覺 */
+        .lego-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #ccac00; }
+
+        /* 特殊按鈕顏色 */
+        #toggle-btn { background: #0055a5; border-color: #0055a5; box-shadow: 0 6px 0 #003a73, 0 6px 10px rgba(0,0,0,0.3); }
+        #toggle-btn:before { background-image: radial-gradient(circle at center, #003a73 4px, transparent 5px); }
+        #toggle-btn:active { box-shadow: 0 2px 0 #003a73; }
+        #toggle-btn:active:before { background-image: radial-gradient(circle at center, #003a73 2px, transparent 3px); }
     </style>
 </head>
 <body>
     <div id="auth-ui" class="game-ui">
-        <h2 id="ui-title" style="color:#8b4513; margin-top:0;">系統登入</h2>
-        <input type="email" id="email" placeholder="Email">
-        <input type="password" id="password" placeholder="密碼">
-        <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
-        <button id="main-btn" onclick="handleAuth()">登入</button>
-        <button onclick="toggleMode()">切換註冊/登入</button>
+        <h2 id="ui-title">系統登入</h2>
+        <input type="email" id="email" placeholder="樂高 ID (Email)">
+        <input type="password" id="password" placeholder="積木密碼">
+        <input type="text" id="nickname" placeholder="小小創作者暱稱" style="display:none;">
+        <button id="main-btn" class="lego-btn" onclick="handleAuth()">登入</button>
+        <button id="toggle-btn" class="lego-btn" onclick="toggleMode()">切換註冊</button>
     </div>
 
     <div id="game-menu" class="game-ui" style="display:none;">
-        <h2 style="color:#8b4513;">準備就緒</h2>
-        <button onclick="startGame()">進入遊戲</button>
+        <h2>歡迎來到樂高樂園！</h2>
+        <button class="lego-btn" onclick="startGame()">進入遊戲</button>
     </div>
 
     <canvas id="renderCanvas"></canvas>
@@ -81,6 +115,7 @@
             document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
             document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
             document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
+            document.getElementById('toggle-btn').innerText = isSignUp ? "切換註冊" : "切換登入";
         }
 
         async function handleAuth() {
@@ -102,7 +137,7 @@
                     let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
                     block.position = new BABYLON.Vector3(x, -0.5, z);
                     let mat = new BABYLON.StandardMaterial("m", scene);
-                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2); // 綠色積木
                     block.material = mat;
                 }
             }
