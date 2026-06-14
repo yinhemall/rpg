@@ -17,14 +17,8 @@
             color: #fff; z-index: 999; border-radius: 4px; width: 280px; 
             text-align: center; box-shadow: 8px 8px 0px rgba(0,0,0,0.5);
         }
-        input { 
-            display: block; margin: 12px auto; padding: 10px; width: 85%; 
-            background: #000; color: #fff; border: 3px solid #fff; font-size: 16px;
-        }
-        button { 
-            padding: 10px 20px; margin: 8px; color: #fff; background: #4a4a4a; 
-            border: 3px solid #fff; font-size: 16px; cursor: pointer; text-transform: uppercase;
-        }
+        input { display: block; margin: 12px auto; padding: 10px; width: 85%; background: #000; color: #fff; border: 3px solid #fff; font-size: 16px; }
+        button { padding: 10px 20px; margin: 8px; color: #fff; background: #4a4a4a; border: 3px solid #fff; font-size: 16px; cursor: pointer; text-transform: uppercase; }
     </style>
 </head>
 <body>
@@ -49,7 +43,8 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
-        
+        scene.collisionsEnabled = true; // 開啟碰撞系統
+
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
 
@@ -97,14 +92,15 @@
             document.getElementById('start-ui').style.display = 'none';
             stickBase.isVisible = true;
 
-            // 產生 30x30 地面，將 tile 放大並以間隔 2 排列
+            // 產生 30x30 地面
             for(let x = -15; x < 15; x++) {
                 for(let z = -15; z < 15; z++) {
                     BABYLON.SceneLoader.ImportMesh("", "./", "tile.glb", scene, (meshes) => {
                         let tile = meshes[0];
-                        tile.scaling = new BABYLON.Vector3(2, 2, 2); // 放大兩倍
-                        tile.position = new BABYLON.Vector3(x * 2, 0, z * 2); // 間隔調整為 2
-                        tile.checkCollisions = true;
+                        // 調整縮放讓方塊變大，並設定緊密間距
+                        tile.scaling = new BABYLON.Vector3(2, 2, 2); 
+                        tile.position = new BABYLON.Vector3(x * 2, 0, z * 2);
+                        tile.checkCollisions = true; // 啟用地面碰撞
                     });
                 }
             }
@@ -112,6 +108,9 @@
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
                 player = m[0]; 
                 player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                player.position = new BABYLON.Vector3(0, 5, 0); // 讓玩家從高處掉落確認碰撞
+                player.checkCollisions = true; // 讓玩家有碰撞體
+                player.ellipsoid = new BABYLON.Vector3(0.5, 1, 0.5); // 設定角色碰撞範圍
                 player.rotationQuaternion = null; 
                 player.rotation.y = 0;
                 anims.walk = scene.getAnimationGroupByName("walking_test");
