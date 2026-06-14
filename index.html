@@ -8,11 +8,9 @@
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        /* 確保填滿全螢幕並移除白邊 */
         body { margin: 0; padding: 0; overflow: hidden; background: #87CEEB; touch-action: none; width: 100vw; height: 100vh; overscroll-behavior: none; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
         
-        /* MC 風格面板樣式 */
         .ui-panel { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
             background: #2a2a2a; padding: 25px; border: 4px solid #fff; 
@@ -36,7 +34,7 @@
         <input type="password" id="password" placeholder="密碼">
         <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
         <button id="main-btn" onclick="handleAuth()">登入</button>
-        <button onclick="toggleMode()">登入/註冊</button>
+        <button onclick="toggleMode()">切換</button>
     </div>
 
     <div id="start-ui" class="ui-panel" style="display:none;">
@@ -90,7 +88,6 @@
                 let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
-                // 成功後隱藏登入頁，顯示開始遊戲頁
                 document.getElementById('auth-ui').style.display = 'none';
                 document.getElementById('start-ui').style.display = 'block';
             } catch (err) { alert("登入失敗: " + err.message); }
@@ -159,7 +156,8 @@
                 }
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
-                player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
+                // 這裡將原本的 0.15 調整為 0.22 實現加速
+                player.position.addInPlace(fwd.scale(-moveData.y * 0.22).add(rgt.scale(moveData.x * 0.22)));
             }
         });
 
