@@ -30,22 +30,19 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        let player = null, moveData = { active: false, x: 0, y: 0 };
+        // GUI 初始化
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
-        
-        // 畫出搖桿底座與控制點
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
         stickBase.color = "white"; stickBase.background = "rgba(255,255,255,0.3)";
         stickBase.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
         stickBase.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
         stickBase.left = 50; stickBase.top = -50;
+        stickBase.isVisible = false; // 初始隱藏
         advancedTexture.addControl(stickBase);
 
         const stick = new BABYLON.GUI.Ellipse();
@@ -53,7 +50,10 @@
         stick.background = "white";
         stickBase.addControl(stick);
 
-        // --- 登入邏輯 ---
+        let player = null, moveData = { active: false, x: 0, y: 0 };
+        const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
+
+        // --- 登入系統 ---
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
             document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
@@ -67,6 +67,7 @@
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
+                stickBase.isVisible = true; // 登入後顯示搖桿
                 loadModel();
             } catch (err) { alert("登入錯誤: " + err.message); }
         }
@@ -79,20 +80,22 @@
             });
         }
 
-        // --- 搖桿觸控處理 ---
+        // --- 移動控制與轉向邏輯 ---
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && info.event.clientX < window.innerWidth / 2) {
                 moveData.active = true;
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
-                // 計算搖桿推動方向
-                let x = info.event.clientX - 125; // 搖桿中心點位置
-                let y = info.event.clientY - (window.innerHeight - 125);
-                let dist = Math.min(Math.sqrt(x*x + y*y), 50);
+                let rect = stickBase._currentMeasure;
+                let centerX = rect.left + rect.width / 2;
+                let centerY = rect.top + rect.height / 2;
+                let x = info.event.clientX - centerX;
+                let y = info.event.clientY - centerY;
+                let dist = Math.min(Math.sqrt(x*x + y*y), 40);
                 let angle = Math.atan2(y, x);
                 stick.left = Math.cos(angle) * dist;
                 stick.top = Math.sin(angle) * dist;
-                moveData.x = Math.cos(angle) * (dist/50);
-                moveData.y = Math.sin(angle) * (dist/50);
+                moveData.x = x / 50;
+                moveData.y = y / 50;
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
                 moveData.active = false; stick.left = 0; stick.top = 0;
             }
@@ -106,6 +109,7 @@
                     const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up());
                     player.position.addInPlace(fwd.scale(-moveData.y * 0.2));
                     player.position.addInPlace(right.scale(moveData.x * 0.2));
+                    // 修正轉向：計算移動方向向量並加上相機的 alpha 偏移
                     player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI/2;
                 }
             }
