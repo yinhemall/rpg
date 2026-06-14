@@ -107,7 +107,8 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    player.rotation.y -= (info.event.clientX - rotData.lastX) * 0.01;
+                    // 正確的旋轉係數，確保左右手勢與視角一致
+                    player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
