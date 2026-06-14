@@ -87,7 +87,8 @@
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
                     player.rotationQuaternion = null; 
-                    player.rotation.y = 0; // 如果眼睛方向還是錯的，請改為 Math.PI
+                    // 將初始朝向設定為 Math.PI (180度)，確保背對視角
+                    player.rotation.y = Math.PI; 
                 });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
