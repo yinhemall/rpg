@@ -53,14 +53,7 @@
         stickBase.addControl(stick);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null }, rotData = { active: false, lastX: 0, pointerId: null };
-
-        function toggleMode() {
-            let isSignUp = document.getElementById('nickname').style.display !== 'none';
-            document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
-            document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
-            document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
-        }
+        let player = null, moveData = { active: false, x: 0, y: 0, id: null }, rotData = { active: false, id: null, lastX: 0 };
 
         async function handleAuth() {
             try {
@@ -69,52 +62,41 @@
                 if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
-                if (!scene.getMeshByName("ground")) {
-                    const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-                    const mat = new BABYLON.StandardMaterial("greenMat", scene);
-                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
-                    ground.material = mat;
-                }
+                const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
+                const mat = new BABYLON.StandardMaterial("green", scene); mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2); ground.material = mat;
                 BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); camera.lockedTarget = player; });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
-        // 優化後的觸控處理
         scene.onPointerObservable.add((info) => {
-            const clientX = info.event.clientX;
-            const clientY = info.event.clientY;
-            const isLeftBottom = clientX < 350 && clientY > window.innerHeight - 350;
-
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                if (isLeftBottom && !moveData.active) {
-                    moveData.active = true; moveData.pointerId = info.event.pointerId;
-                } else if (!rotData.active) {
-                    rotData.active = true; rotData.pointerId = info.event.pointerId; rotData.lastX = clientX;
+                if (info.event.clientX < window.innerWidth / 2) {
+                    moveData.active = true; moveData.id = info.event.pointerId;
+                } else {
+                    rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
-                if (moveData.active && info.event.pointerId === moveData.pointerId) {
-                    let dx = clientX - 175, dy = clientY - (window.innerHeight - 175);
-                    let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 75);
+                if (moveData.active && info.event.pointerId === moveData.id) {
+                    let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
+                    let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
                     let angle = Math.atan2(dy, dx);
                     stick.left = Math.cos(angle) * dist; stick.top = Math.sin(angle) * dist;
-                    moveData.x = (Math.cos(angle) * dist) / 75; moveData.y = (Math.sin(angle) * dist) / 75;
-                } else if (rotData.active && info.event.pointerId === rotData.pointerId && player) {
-                    let delta = clientX - rotData.lastX;
-                    player.rotation.y += delta * 0.01;
-                    rotData.lastX = clientX;
+                    moveData.x = (Math.cos(angle) * dist) / 50; moveData.y = (Math.sin(angle) * dist) / 50;
+                } else if (rotData.active && info.event.pointerId === rotData.id && player) {
+                    player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
+                    rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
-                if (info.event.pointerId === moveData.pointerId) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
-                if (info.event.pointerId === rotData.pointerId) { rotData.active = false; }
+                if (info.event.pointerId === moveData.id) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
+                if (info.event.pointerId === rotData.id) { rotData.active = false; }
             }
         });
 
         scene.registerBeforeRender(() => {
-            if (player && moveData.active) {
-                const forward = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-                const right = new BABYLON.Vector3(forward.z, 0, -forward.x);
-                const moveVector = forward.scale(-moveData.y).add(right.scale(moveData.x));
-                player.position.addInPlace(moveVector.scale(0.15));
+            if (player) {
+                const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+                const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
+                player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
             }
         });
 
