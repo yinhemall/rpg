@@ -10,60 +10,43 @@
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: sans-serif; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
-
-        /* 遊戲 UI 面板 - 模仿圖片的風格 */
-        .game-panel {
-            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
-            display: flex; gap: 10px; z-index: 1000;
+        
+        /* 遊戲風格 UI 設定 */
+        #ui { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: #fdfd96; padding: 25px; border: 4px solid #333; 
+            border-radius: 12px; z-index: 999; text-align: center;
+            /* 模仿紋理背景 */
+            background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.05) 10px, transparent 10px, transparent 20px);
+            box-shadow: 0 4px 0 #b8860b;
         }
-
-        .game-btn {
-            padding: 15px 30px;
-            color: white;
-            font-weight: 800;
-            font-size: 20px;
-            border: 4px solid #333; /* 粗邊框 */
-            border-radius: 8px;      /* 圓角 */
-            text-shadow: 2px 2px 2px #000;
-            cursor: pointer;
-            /* 模仿網格質感 */
-            background-size: 10px 10px;
-            background-image: linear-gradient(45deg, rgba(255,255,255,.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.1) 75%, transparent 75%, transparent);
+        
+        input { 
+            display: block; margin: 15px auto; padding: 12px; width: 80%; 
+            background: #fff; border: 3px solid #333; border-radius: 6px; 
+            font-weight: bold;
         }
-
-        .bg-green { background-color: #77dd77; }
-        .bg-brown { background-color: #a0522d; }
-        .bg-yellow { background-color: #ffd700; }
-
-        /* 登入介面 */
-        .auth-container { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: #fff; padding: 25px; border: 4px solid #333; border-radius: 10px; z-index: 999; text-align: center;
+        
+        button { 
+            padding: 12px 25px; margin: 8px; cursor: pointer;
+            background: #77dd77; border: 3px solid #333; border-radius: 6px;
+            font-weight: 800; font-size: 16px; color: #fff;
+            text-shadow: 1px 1px 2px #000;
         }
-        input { display: block; margin: 10px auto; padding: 10px; width: 220px; border: 2px solid #333; }
-        .auth-btn { padding: 10px 20px; cursor: pointer; background: #eee; border: 2px solid #333; margin: 5px; }
     </style>
 </head>
 <body>
-    <div id="auth-container" class="auth-container">
-        <h2 id="ui-title">系統登入</h2>
+    <div id="ui">
+        <h3 id="ui-title" style="color: #333;">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
         <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
-        <button id="main-btn" class="auth-btn" onclick="handleAuth()">登入</button>
-        <button class="auth-btn" onclick="toggleMode()">切換</button>
+        <button id="main-btn" onclick="handleAuth()">登入</button>
+        <button style="background: #a0522d;" onclick="toggleMode()">切換註冊/登入</button>
     </div>
-
-    <div id="game-panel" class="game-panel" style="display:none;">
-        <div class="game-btn bg-green"> </div>
-        <div class="game-btn bg-brown"> </div>
-        <div class="game-btn bg-yellow"> </div>
-    </div>
-
     <canvas id="renderCanvas"></canvas>
 
     <script>
-        // --- 下方完全保留你原本的邏輯 ---
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
@@ -71,7 +54,9 @@
         
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
+
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
+        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         camera.inputs.remove(camera.inputs.attached.pointers);
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
@@ -101,37 +86,38 @@
         }
 
         async function handleAuth() {
-            let isSignUp = document.getElementById('nickname').style.display === 'block';
+            if (player) return;
             try {
+                let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
-                document.getElementById('auth-container').style.display = 'none';
-                document.getElementById('game-panel').style.display = 'flex';
-                startGame();
-            } catch (err) { alert("失敗: " + err.message); }
-        }
+                document.getElementById('ui').style.display = 'none';
+                stickBase.isVisible = true;
 
-        function startGame() {
-            stickBase.isVisible = true;
-            for(let x=-10; x<10; x++) {
-                for(let z=-10; z<10; z++) {
-                    let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
-                    block.position = new BABYLON.Vector3(x, -0.5, z);
-                    let mat = new BABYLON.StandardMaterial("m", scene);
-                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
-                    block.material = mat;
+                for(let x=-10; x<10; x++) {
+                    for(let z=-10; z<10; z++) {
+                        let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
+                        block.position = new BABYLON.Vector3(x, -0.5, z);
+                        let mat = new BABYLON.StandardMaterial("m", scene);
+                        mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                        block.material = mat;
+                    }
                 }
-            }
-            BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
-                player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); player.rotation.y = 0;
-                anims.walk = scene.getAnimationGroupByName("walking_test");
-                anims.still = scene.getAnimationGroupByName("still_test");
-                if (anims.still) anims.still.start(true);
-            });
+
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
+                    player = m[0]; 
+                    player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                    player.rotationQuaternion = null; 
+                    player.rotation.y = 0;
+                    anims.walk = scene.getAnimationGroupByName("walking_test");
+                    anims.still = scene.getAnimationGroupByName("still_test");
+                    if (anims.still) { anims.still.start(true); anims.current = "still"; }
+                });
+            } catch (err) { alert("登入失敗: " + err.message); }
         }
 
         scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && stickBase.isVisible) {
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
                 if (info.event.clientX < window.innerWidth / 2) { moveData.active = true; moveData.id = info.event.pointerId; }
                 else { rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX; }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
@@ -154,6 +140,7 @@
         scene.registerBeforeRender(() => {
             if (player) {
                 camera.target = player.position.clone();
+                camera.beta = Math.PI / 3;
                 camera.alpha = -player.rotation.y + Math.PI / 2;
                 const isMoving = Math.abs(moveData.x) > 0.05 || Math.abs(moveData.y) > 0.05;
                 if (isMoving && anims.current !== "walk") {
@@ -166,12 +153,4 @@
                     anims.current = "still";
                 }
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-                const rgt = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
-                player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
-            }
-        });
-        engine.runRenderLoop(() => scene.render());
-        window.addEventListener("resize", () => engine.resize());
-    </script>
-</body>
-</html>
+                const rgt = new BABYLON.Vector3(-fwd.z,
