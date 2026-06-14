@@ -31,11 +31,13 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
+        // --- 攝影機設定：鎖定距離與高度 ---
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
+        // --- GUI 搖桿設定 ---
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
@@ -51,7 +53,10 @@
         stick.background = "white";
         stickBase.addControl(stick);
 
+        // --- 遊戲邏輯與登入 ---
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
+        let player = null, moveData = { active: false, x: 0, y: 0 };
+
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
             document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
@@ -71,25 +76,29 @@
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
-        let player = null, moveData = { active: false, x: 0, y: 0 };
+        // --- 核心修正：觸控事件攔截 ---
         scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && info.event.clientX < window.innerWidth / 2) {
+            const isLeft = info.event.clientX < window.innerWidth / 2;
+            
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && isLeft) {
                 moveData.active = true;
-                info.event.stopPropagation();
+                info.event.stopPropagation(); // 阻止相機搶走點擊
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
                 let rect = stickBase._currentMeasure;
                 let x = info.event.clientX - (rect.left + rect.width / 2);
                 let y = info.event.clientY - (rect.top + rect.height / 2);
                 let dist = Math.min(Math.sqrt(x*x + y*y), 40);
                 let angle = Math.atan2(y, x);
-                stick.left = Math.cos(angle) * dist; stick.top = Math.sin(angle) * dist;
+                stick.left = Math.cos(angle) * dist;
+                stick.top = Math.sin(angle) * dist;
                 moveData.x = x / 40; moveData.y = y / 40;
-                info.event.stopPropagation();
+                info.event.stopPropagation(); // 阻止相機搶走移動
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
                 moveData.active = false; stick.left = 0; stick.top = 0;
             }
         });
 
+        // --- 渲染前的移動計算 ---
         scene.registerBeforeRender(() => {
             if (player) {
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
