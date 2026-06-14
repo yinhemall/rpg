@@ -31,13 +31,13 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-
-        // 使用 ArcRotateCamera 作為第三人稱攝影機
+        
+        // 設定攝影機
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
-        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        // 增加靈敏度，讓轉視角更順手
-        camera.angularSensibilityX = camera.angularSensibilityY = 1000;
+        camera.lowerRadiusLimit = 10;
+        camera.upperRadiusLimit = 20;
+        camera.upperBetaLimit = Math.PI / 2.1;
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -81,41 +81,4 @@
                 moveData.active = true; moveData.pointerId = info.event.pointerId;
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
                 let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
-                let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
-                let angle = Math.atan2(dy, dx);
-                stick.left = Math.cos(angle) * dist;
-                stick.top = Math.sin(angle) * dist;
-                moveData.x = (Math.cos(angle) * dist) / 40;
-                moveData.y = (Math.sin(angle) * dist) / 40;
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP && info.event.pointerId === moveData.pointerId) {
-                moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0;
-            }
-        });
-
-        scene.registerBeforeRender(() => {
-            if (player) {
-                camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
-                
-                if (moveData.active) {
-                    // --- MC 核心移動邏輯 ---
-                    // 將搖桿輸入 (x, y) 轉換為世界空間向量
-                    // 根據相機目前的水平旋轉 (alpha) 來調整方向
-                    const forward = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha));
-                    const right = new BABYLON.Vector3(forward.z, 0, -forward.x);
-                    
-                    const moveDir = forward.scale(-moveData.y).add(right.scale(moveData.x)).normalize();
-                    
-                    // 套用移動
-                    player.position.addInPlace(moveDir.scale(0.15));
-                    
-                    // 讓角色旋轉至面向移動方向
-                    player.rotation.y = Math.atan2(moveDir.x, moveDir.z);
-                }
-            }
-        });
-
-        engine.runRenderLoop(() => scene.render());
-        window.addEventListener("resize", () => engine.resize());
-    </script>
-</body>
-</html>
+                let dist = Math.min
