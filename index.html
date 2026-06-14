@@ -10,7 +10,9 @@
         body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; }
         #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; z-index: 999; border-radius: 15px; width: 80%; text-align: center; }
-        #debug { position: absolute; top: 10px; left: 10px; color: yellow; z-index: 1000; pointer-events: none; }
+        #debug { position: absolute; top: 10px; left: 10px; color: yellow; z-index: 1000; pointer-events: none; font-size: 20px; }
+        input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #222; color: #fff; border: 1px solid #444; }
+        button { padding: 10px 20px; margin: 5px; color: #0ff; background: transparent; border: 1px solid #0ff; }
     </style>
 </head>
 <body>
@@ -18,9 +20,7 @@
         <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email"><br>
         <input type="password" id="password" placeholder="密碼"><br>
-        <input type="text" id="nickname" placeholder="暱稱" style="display:none;"><br>
         <button id="main-btn" onclick="handleAuth()">登入</button>
-        <button onclick="toggleMode()">切換註冊/登入</button>
     </div>
     <div id="debug"></div>
     <canvas id="renderCanvas"></canvas>
@@ -31,66 +31,60 @@
         const scene = new BABYLON.Scene(engine);
         const debug = document.getElementById('debug');
         
-        // 攝影機初始化：先預設對焦到原點
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, new BABYLON.Vector3(0, 0, 0), scene);
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let player = null, isLoaded = false, moveInput = { active: false, x: 0, y: 0 };
-
-        function toggleMode() {
-            let isSignUp = document.getElementById('nickname').style.display !== 'none';
-            document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
-            document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
-            document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
-        }
+        let player = null;
+        let moveState = { active: false, x: 0, y: 0 };
 
         async function handleAuth() {
-            try {
-                let isSignUp = document.getElementById('nickname').style.display === 'block';
-                const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
-                if (error) throw error;
-                document.getElementById('ui').style.display = 'none';
-                loadModel();
-            } catch (err) { debug.innerText = "登入失敗: " + err.message; }
-        }
-
-        function loadModel() {
-            if (isLoaded) return;
-            isLoaded = true;
+            document.getElementById('ui').style.display = 'none';
             debug.innerText = "載入中...";
-            BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
             
+            BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
-                debug.innerText = "載入成功";
-            }, null, (s, m) => { debug.innerText = "模型錯誤: " + m; });
+                debug.innerText = "載入成功，請試著滑動左半邊";
+            });
         }
 
-        scene.onPointerObservable.add((info) => {
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                if (info.event.clientX < window.innerWidth / 2) moveInput.active = true;
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveInput.active) {
-                moveInput.x = (info.event.clientX / (window.innerWidth / 4) - 1);
-                moveInput.y = (info.event.clientY / (window.innerHeight / 2) - 1);
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
-                moveInput.active = false;
+        // 核心修改：使用 pointer 事件來偵測移動
+        scene.onPointerObservable.add((pointerInfo) => {
+            switch (pointerInfo.type) {
+                case BABYLON.PointerEventTypes.POINTERDOWN:
+                    if (pointerInfo.event.clientX < window.innerWidth / 2) moveState.active = true;
+                    break;
+                case BABYLON.PointerEventTypes.POINTERMOVE:
+                    if (moveState.active) {
+                        moveState.x = (pointerInfo.event.clientX / (window.innerWidth / 2)) * 2 - 1;
+                        moveState.y = (pointerInfo.event.clientY / window.innerHeight) * 2 - 1;
+                    }
+                    break;
+                case BABYLON.PointerEventTypes.POINTERUP:
+                    moveState.active = false;
+                    break;
             }
         });
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 平滑追蹤
-                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1.5, 0)), 0.1);
-                
-                if (moveInput.active) {
-                    const fwd = camera.getForwardRay().direction; fwd.y = 0; fwd.normalize();
+                // 鏡頭跟隨
+                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1, 0)), 0.1);
+
+                if (moveState.active) {
+                    // 計算基於鏡頭的方向
+                    const fwd = camera.getForwardRay().direction;
+                    fwd.y = 0; fwd.normalize();
                     const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up());
-                    player.position.addInPlace(fwd.scale(-moveInput.y * 0.2));
-                    player.position.addInPlace(right.scale(moveInput.x * 0.2));
-                    player.rotation.y = Math.atan2(moveInput.x, -moveInput.y) + camera.alpha + Math.PI/2;
+                    
+                    // 移動角色
+                    player.position.addInPlace(fwd.scale(-moveState.y * 0.2));
+                    player.position.addInPlace(right.scale(moveState.x * 0.2));
+                    player.rotation.y = Math.atan2(moveState.x, -moveState.y) + camera.alpha + Math.PI/2;
+                    
+                    debug.innerText = "移動中: " + moveState.x.toFixed(2);
                 }
             }
         });
