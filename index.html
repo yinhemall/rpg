@@ -3,8 +3,6 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-    <script>eruda.init();</script>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.babylonjs.com/loaders/babylonjs.loaders.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -33,29 +31,24 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
         
-        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.8;
-        light.specular = new BABYLON.Color3(0, 0, 0);
-
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let isSignUp = false;
-        let player = null;
-        let moveData = { active: false, x: 0, y: 0 };
-        let isLoaded = false;
+        let player = null, isLoaded = false;
+        let moveInput = { active: false, x: 0, y: 0 };
 
-        // --- 登入/註冊系統 (完全不動) ---
+        // --- 登入邏輯 ---
         function toggleMode() {
-            isSignUp = !isSignUp;
-            document.getElementById('ui-title').innerText = isSignUp ? "系統註冊" : "系統登入";
-            document.getElementById('main-btn').innerText = isSignUp ? "註冊" : "登入";
-            document.getElementById('nickname').style.display = isSignUp ? "block" : "none";
+            let isSignUp = document.getElementById('nickname').style.display !== 'none';
+            document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
+            document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
+            document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
         }
 
         async function handleAuth() {
             try {
+                let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
@@ -73,31 +66,30 @@
             });
         }
 
-        // 觸控分區監聽
+        // 核心：分區觸控邏輯 (左半屏移動、右半屏旋轉)
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                if (info.event.clientX < window.innerWidth / 2) moveData.active = true;
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
-                moveData.x = (info.event.clientX / (window.innerWidth / 2) - 1);
-                moveData.y = (info.event.clientY / window.innerHeight - 0.5) * 2;
+                if (info.event.clientX < window.innerWidth / 2) moveInput.active = true;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveInput.active) {
+                moveInput.x = (info.event.clientX / (window.innerWidth / 4) - 1);
+                moveInput.y = (info.event.clientY / (window.innerHeight / 2) - 1);
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
-                moveData.active = false;
+                moveInput.active = false;
             }
         });
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 平滑跟隨角色頭部
-                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1, 0)), 0.1);
+                // 相機平滑跟隨 (Target 永遠在角色上方)
+                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1.5, 0)), 0.1);
                 
-                if (moveData.active) {
-                    const fwd = camera.getForwardRay().direction;
-                    fwd.y = 0; fwd.normalize();
+                if (moveInput.active) {
+                    const fwd = camera.getForwardRay().direction; fwd.y = 0; fwd.normalize();
                     const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up());
                     
-                    player.position.addInPlace(fwd.scale(-moveData.y * 0.2));
-                    player.position.addInPlace(right.scale(moveData.x * 0.2));
-                    player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI/2;
+                    player.position.addInPlace(fwd.scale(-moveInput.y * 0.2));
+                    player.position.addInPlace(right.scale(moveInput.x * 0.2));
+                    player.rotation.y = Math.atan2(moveInput.x, -moveInput.y) + camera.alpha + Math.PI/2;
                 }
             }
         });
