@@ -122,9 +122,8 @@
                 camera.beta = Math.PI / 3;
                 camera.alpha = -player.rotation.y + Math.PI / 2;
                 
-                // 【關鍵修正】：將 moveData.y 取負值，修正搖桿前後相反問題
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
-                const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
+                const rgt = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
                 player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
             }
         });
