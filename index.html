@@ -32,7 +32,7 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         
-        // 平均亮度光源
+        // 燈光設定：改用均勻環境光
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
 
@@ -47,7 +47,7 @@
         stickBase.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
         stickBase.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
         stickBase.left = 100; stickBase.top = -100;
-        stickBase.isVisible = false; 
+        stickBase.isVisible = false;
         advancedTexture.addControl(stickBase);
 
         const stick = new BABYLON.GUI.Ellipse();
@@ -106,6 +106,7 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
+                    // 同步旋轉：右邊滑動同時旋轉人物
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.005;
                     rotData.lastX = info.event.clientX;
                 }
@@ -117,8 +118,10 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
+                // 強制相機 alpha 與人物 rotation.y 同步
                 camera.target = player.position.clone();
                 camera.alpha = -player.rotation.y - Math.PI / 2;
+                
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
                 player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
