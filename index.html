@@ -33,10 +33,10 @@
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // 關鍵點：改回使用 ArcRotateCamera，但完全由程式碼控制，不讓它有自己的慣性
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, false); 
-        camera.inputs.remove(camera.inputs.attached.pointers); // 徹底移除原生觸控
+        // 相機鎖定
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
+        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
+        camera.attachControl(canvas, false);
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -56,17 +56,37 @@
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let player = null, moveData = { active: false, x: 0, y: 0, id: null }, rotData = { active: false, id: null, lastX: 0 };
 
+        function toggleMode() {
+            let isSignUp = document.getElementById('nickname').style.display !== 'none';
+            document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
+            document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
+            document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
+        }
+
         async function handleAuth() {
             try {
+                let isSignUp = document.getElementById('nickname').style.display === 'block';
+                const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
+                if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
-                const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-                const mat = new BABYLON.StandardMaterial("green", scene); mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2); ground.material = mat;
+
+                // 產生 MC 風格地板
+                for(let x=-10; x<10; x++) {
+                    for(let z=-10; z<10; z++) {
+                        let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
+                        block.position = new BABYLON.Vector3(x, -0.5, z);
+                        let mat = new BABYLON.StandardMaterial("m", scene);
+                        mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                        block.material = mat;
+                    }
+                }
+
                 BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
                 });
-            } catch (err) { alert("登入失敗"); }
+            } catch (err) { alert("登入失敗: " + err.message); }
         }
 
         scene.onPointerObservable.add((info) => {
@@ -84,7 +104,6 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    // 只旋轉玩家，不碰相機
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
@@ -96,10 +115,7 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 相機只負責「凝視」玩家，保持固定距離，不要參與旋轉計算
-                camera.target = player.position.clone();
-                
-                // 移動邏輯：永遠根據玩家當前朝向走
+                camera.target = player.position;
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
                 player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
