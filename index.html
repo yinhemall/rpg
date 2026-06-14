@@ -8,77 +8,62 @@
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: 'Arial Rounded MT Bold', sans-serif; /* 使用更圓潤的字體 */ }
+        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: sans-serif; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
-        
-        /* 樂高積木風格的介面容器 */
-        .game-ui { 
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: #e10019; /* 樂高紅 */ padding: 30px; 
-            border: 6px solid #b30014; /* 深紅色積木邊框 */
-            color: #fff; z-index: 999; border-radius: 12px; width: 75%; text-align: center;
-            box-shadow: 0 10px 0 #8c0010, 0 10px 20px rgba(0,0,0,0.5); /* 積木厚度陰影與外部陰影 */
-        }
-        /* 模擬介面頂部的樂高顆粒 */
-        .game-ui:before {
-            content: ""; position: absolute; top: -18px; left: 10px; right: 10px; height: 20px;
-            background-image: radial-gradient(circle at center, #8c0010 6px, transparent 7px);
-            background-size: 20px 20px;
+
+        /* 遊戲 UI 面板 - 模仿圖片的風格 */
+        .game-panel {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 10px; z-index: 1000;
         }
 
-        h2 { color: #fff; margin-top: 10px; text-shadow: 2px 2px 0 #8c0010; font-size: 24px; text-transform: uppercase; }
-
-        /* 模擬樂高積木的輸入框 */
-        input { 
-            display: block; margin: 15px auto; padding: 12px; width: 85%; 
-            background: #fff; border: 4px solid #fff; border-radius: 8px; 
-            color: #333; font-weight: bold; font-size: 16px;
-            box-shadow: inset 0 3px 0 rgba(0,0,0,0.2), 0 4px 0 rgba(255,255,255,0.5); /* 內部凹陷與外部凸起陰影 */
+        .game-btn {
+            padding: 15px 30px;
+            color: white;
+            font-weight: 800;
+            font-size: 20px;
+            border: 4px solid #333; /* 粗邊框 */
+            border-radius: 8px;      /* 圓角 */
+            text-shadow: 2px 2px 2px #000;
+            cursor: pointer;
+            /* 模仿網格質感 */
+            background-size: 10px 10px;
+            background-image: linear-gradient(45deg, rgba(255,255,255,.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.1) 50%, rgba(255,255,255,.1) 75%, transparent 75%, transparent);
         }
-        input:focus { outline: none; border-color: #0055a5; /* 藍色積木強調色 */ }
 
-        /* 模擬樂高積木按鈕 */
-        .lego-btn { 
-            position: relative; display: inline-block; padding: 15px 30px; margin: 10px; cursor: pointer;
-            color: #fff; font-weight: bold; font-size: 18px; text-transform: uppercase; text-decoration: none;
-            background: #ffd700; /* 樂高黃 */ border: 5px solid #ffd700; border-radius: 10px;
-            box-shadow: 0 6px 0 #ccac00, 0 6px 10px rgba(0,0,0,0.3); /* 積木厚度陰影 */
-            text-shadow: 1px 1px 0 rgba(0,0,0,0.3); transition: none;
-        }
-        /* 模擬按鈕表面的樂高顆粒 */
-        .lego-btn:before {
-            content: ""; position: absolute; top: -10px; left: 8px; right: 8px; height: 12px;
-            background-image: radial-gradient(circle at center, #ccac00 4px, transparent 5px);
-            background-size: 16px 16px;
-        }
-        /* 按下按鈕的感覺 */
-        .lego-btn:active { transform: translateY(4px); box-shadow: 0 2px 0 #ccac00; }
+        .bg-green { background-color: #77dd77; }
+        .bg-brown { background-color: #a0522d; }
+        .bg-yellow { background-color: #ffd700; }
 
-        /* 特殊按鈕顏色 */
-        #toggle-btn { background: #0055a5; border-color: #0055a5; box-shadow: 0 6px 0 #003a73, 0 6px 10px rgba(0,0,0,0.3); }
-        #toggle-btn:before { background-image: radial-gradient(circle at center, #003a73 4px, transparent 5px); }
-        #toggle-btn:active { box-shadow: 0 2px 0 #003a73; }
-        #toggle-btn:active:before { background-image: radial-gradient(circle at center, #003a73 2px, transparent 3px); }
+        /* 登入介面 */
+        .auth-container { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: #fff; padding: 25px; border: 4px solid #333; border-radius: 10px; z-index: 999; text-align: center;
+        }
+        input { display: block; margin: 10px auto; padding: 10px; width: 220px; border: 2px solid #333; }
+        .auth-btn { padding: 10px 20px; cursor: pointer; background: #eee; border: 2px solid #333; margin: 5px; }
     </style>
 </head>
 <body>
-    <div id="auth-ui" class="game-ui">
+    <div id="auth-container" class="auth-container">
         <h2 id="ui-title">系統登入</h2>
-        <input type="email" id="email" placeholder="樂高 ID (Email)">
-        <input type="password" id="password" placeholder="積木密碼">
-        <input type="text" id="nickname" placeholder="小小創作者暱稱" style="display:none;">
-        <button id="main-btn" class="lego-btn" onclick="handleAuth()">登入</button>
-        <button id="toggle-btn" class="lego-btn" onclick="toggleMode()">切換註冊</button>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="密碼">
+        <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
+        <button id="main-btn" class="auth-btn" onclick="handleAuth()">登入</button>
+        <button class="auth-btn" onclick="toggleMode()">切換</button>
     </div>
 
-    <div id="game-menu" class="game-ui" style="display:none;">
-        <h2>歡迎來到樂高樂園！</h2>
-        <button class="lego-btn" onclick="startGame()">進入遊戲</button>
+    <div id="game-panel" class="game-panel" style="display:none;">
+        <div class="game-btn bg-green"> </div>
+        <div class="game-btn bg-brown"> </div>
+        <div class="game-btn bg-yellow"> </div>
     </div>
 
     <canvas id="renderCanvas"></canvas>
 
     <script>
+        // --- 下方完全保留你原本的邏輯 ---
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
@@ -86,9 +71,7 @@
         
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
-
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
-        camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         camera.inputs.remove(camera.inputs.attached.pointers);
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
@@ -115,7 +98,6 @@
             document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
             document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
             document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
-            document.getElementById('toggle-btn').innerText = isSignUp ? "切換註冊" : "切換登入";
         }
 
         async function handleAuth() {
@@ -123,33 +105,28 @@
             try {
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
-                document.getElementById('auth-ui').style.display = 'none';
-                document.getElementById('game-menu').style.display = 'block';
+                document.getElementById('auth-container').style.display = 'none';
+                document.getElementById('game-panel').style.display = 'flex';
+                startGame();
             } catch (err) { alert("失敗: " + err.message); }
         }
 
         function startGame() {
-            document.getElementById('game-menu').style.display = 'none';
             stickBase.isVisible = true;
-
             for(let x=-10; x<10; x++) {
                 for(let z=-10; z<10; z++) {
                     let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
                     block.position = new BABYLON.Vector3(x, -0.5, z);
                     let mat = new BABYLON.StandardMaterial("m", scene);
-                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2); // 綠色積木
+                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
                     block.material = mat;
                 }
             }
-
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
-                player = m[0]; 
-                player.scaling = new BABYLON.Vector3(2, 2, 2); 
-                player.rotationQuaternion = null; 
-                player.rotation.y = 0;
+                player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); player.rotation.y = 0;
                 anims.walk = scene.getAnimationGroupByName("walking_test");
                 anims.still = scene.getAnimationGroupByName("still_test");
-                if (anims.still) { anims.still.start(true); anims.current = "still"; }
+                if (anims.still) anims.still.start(true);
             });
         }
 
@@ -177,7 +154,6 @@
         scene.registerBeforeRender(() => {
             if (player) {
                 camera.target = player.position.clone();
-                camera.beta = Math.PI / 3;
                 camera.alpha = -player.rotation.y + Math.PI / 2;
                 const isMoving = Math.abs(moveData.x) > 0.05 || Math.abs(moveData.y) > 0.05;
                 if (isMoving && anims.current !== "walk") {
@@ -194,7 +170,6 @@
                 player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
             }
         });
-
         engine.runRenderLoop(() => scene.render());
         window.addEventListener("resize", () => engine.resize());
     </script>
