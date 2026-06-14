@@ -30,15 +30,13 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
+        // 設定藍色天空背景
+        scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // 攝影機：強制鎖定在角色背後
         const camera = new BABYLON.FollowCamera("fCam", new BABYLON.Vector3(0, 5, -15), scene);
-        camera.radius = 15;
-        camera.heightOffset = 4;
-        camera.rotationOffset = 0;
-        camera.cameraAcceleration = 0.05;
-        camera.maxCameraSpeed = 10;
+        camera.radius = 15; camera.heightOffset = 4; camera.rotationOffset = 0;
+        camera.cameraAcceleration = 0.05; camera.maxCameraSpeed = 10;
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -56,7 +54,7 @@
         stickBase.addControl(stick);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null }, rotData = { active: false, lastX: 0 };
+        let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null }, rotData = { active: false, lastX: 0, pointerId: null };
 
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
@@ -72,19 +70,26 @@
                 if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
-                if (!scene.getMeshByName("ground")) BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
+                
+                // 地板改為綠色
+                if (!scene.getMeshByName("ground")) {
+                    const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
+                    const mat = new BABYLON.StandardMaterial("greenMat", scene);
+                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                    ground.material = mat;
+                }
+                
                 BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); camera.lockedTarget = player; });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
         scene.onPointerObservable.add((info) => {
+            const isLeftBottom = info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300;
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                // 左下角負責搖桿
-                if (info.event.clientX < 400 && info.event.clientY > window.innerHeight - 400) {
+                if (isLeftBottom) {
                     moveData.active = true; moveData.pointerId = info.event.pointerId;
-                } else { 
-                    // 其餘螢幕範圍負責旋轉
-                    rotData.active = true; rotData.lastX = info.event.clientX; 
+                } else {
+                    rotData.active = true; rotData.pointerId = info.event.pointerId; rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
                 if (moveData.active && info.event.pointerId === moveData.pointerId) {
@@ -93,24 +98,21 @@
                     let angle = Math.atan2(dy, dx);
                     stick.left = Math.cos(angle) * dist; stick.top = Math.sin(angle) * dist;
                     moveData.x = (Math.cos(angle) * dist) / 40; moveData.y = (Math.sin(angle) * dist) / 40;
-                } else if (rotData.active && player) {
+                } else if (rotData.active && rotData.pointerId === info.event.pointerId && player) {
                     let delta = info.event.clientX - rotData.lastX;
-                    player.rotation.y += delta * 0.01; // 旋轉速度
+                    player.rotation.y += delta * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
                 if (info.event.pointerId === moveData.pointerId) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
-                rotData.active = false;
+                if (info.event.pointerId === rotData.pointerId) { rotData.active = false; }
             }
         });
 
         scene.registerBeforeRender(() => {
             if (player && moveData.active) {
-                // 計算角色的前方 (forward) 與 右方 (right)
                 const forward = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const right = new BABYLON.Vector3(forward.z, 0, -forward.x);
-                
-                // 根據搖桿輸入移動：x 是左右平移，y 是前後前進後退
                 const moveVector = forward.scale(-moveData.y).add(right.scale(moveData.x));
                 player.position.addInPlace(moveVector.scale(0.15));
             }
