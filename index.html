@@ -33,9 +33,10 @@
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        const camera = new BABYLON.FollowCamera("fCam", new BABYLON.Vector3(0, 5, -15), scene);
-        camera.radius = 15; camera.heightOffset = 4; camera.rotationOffset = 0;
-        camera.cameraAcceleration = 0.05; camera.maxCameraSpeed = 10;
+        // 使用一個普通的相機並在每一幀強制計算其位置，完全避開 FollowCamera 的限制
+        const camera = new BABYLON.ArcRotateCamera("cam", 0, 1.2, 15, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        camera.inputs.remove(camera.inputs.attached.pointers); // 徹底移除滑鼠/觸控控制
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -64,7 +65,7 @@
                 stickBase.isVisible = true;
                 const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
                 const mat = new BABYLON.StandardMaterial("green", scene); mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2); ground.material = mat;
-                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); camera.lockedTarget = player; });
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
@@ -77,10 +78,9 @@
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
                 if (moveData.active && info.event.pointerId === moveData.id) {
-                    // 相對於搖桿中心的偏移
                     let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                     let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
-                    let angle = Math.atan2(dx, -dy); // 修正旋轉基準
+                    let angle = Math.atan2(dx, -dy);
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
@@ -95,6 +95,11 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
+                // 1. 手動更新相機位置，繞著玩家轉
+                camera.target = player.position.clone();
+                camera.alpha = -player.rotation.y - Math.PI / 2;
+                
+                // 2. 移動邏輯
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
                 player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
