@@ -8,48 +8,49 @@
     <script src="https://cdn.babylonjs.com/gui/babylon.gui.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; font-family: 'Verdana', sans-serif; }
+        /* 全域背景設定 */
+        body { 
+            margin: 0; overflow: hidden; touch-action: none; 
+            background-image: url('https://i.imgur.com/GzB1I9T.png'); /* 這是你提供的石材紋理 */
+            background-repeat: repeat;
+        }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
         
-        /* MC 風格介面容器 */
+        /* MC 風格 UI */
         #ui { 
             position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(0, 0, 0, 0.7); padding: 30px; border: 4px solid #333; 
-            border-radius: 8px; z-index: 999; text-align: center;
-            /* 模擬網格質感 */
-            background-image: repeating-linear-gradient(45deg, rgba(0,0,0,0.05) 0, rgba(0,0,0,0.05) 10px, transparent 10px, transparent 20px);
+            background: rgba(0, 0, 0, 0.85); padding: 25px; border: 4px solid #fff; 
+            z-index: 999; text-align: center; color: white;
+            box-shadow: 5px 5px 0px #000;
         }
-        
         input { 
-            display: block; margin: 15px auto; padding: 12px; width: 80%; 
-            background: #fff; border: 3px solid #333; border-radius: 4px; 
-            font-weight: bold; font-family: 'Verdana', sans-serif;
+            display: block; margin: 15px auto; padding: 10px; width: 250px; 
+            background: #fff; border: 2px solid #333; font-weight: bold;
         }
-        
         button { 
-            padding: 12px 25px; margin: 10px; cursor: pointer;
-            background: #77dd77; border: 3px solid #333; border-radius: 4px;
-            font-weight: 800; font-size: 16px; color: #fff;
-            text-shadow: 1px 1px 2px #000;
+            padding: 10px 20px; margin: 5px; cursor: pointer;
+            background: #77dd77; border: 3px solid #333; color: white; font-weight: bold;
+            text-shadow: 1px 1px #000;
         }
     </style>
 </head>
 <body>
     <div id="ui">
-        <h2 id="ui-title" style="color: #fff; font-family: 'Verdana', sans-serif;">系統登入</h2>
+        <h3 id="ui-title">系統登入</h3>
         <input type="email" id="email" placeholder="Email">
         <input type="password" id="password" placeholder="密碼">
         <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
         <button id="main-btn" onclick="handleAuth()">登入</button>
-        <button style="background: #a0522d;" onclick="toggleMode()">切換註冊/登入</button>
+        <button onclick="toggleMode()">切換註冊/登入</button>
     </div>
     <canvas id="renderCanvas"></canvas>
 
     <script>
+        // --- 下方為完全保留的系統邏輯 ---
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
+        scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // 透明以顯示背景圖
         
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
@@ -91,6 +92,7 @@
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
+                document.body.style.backgroundImage = 'none'; // 進入遊戲後移除背景圖
                 stickBase.isVisible = true;
 
                 for(let x=-10; x<10; x++) {
@@ -141,6 +143,7 @@
                 camera.target = player.position.clone();
                 camera.beta = Math.PI / 3;
                 camera.alpha = -player.rotation.y + Math.PI / 2;
+                
                 const isMoving = Math.abs(moveData.x) > 0.05 || Math.abs(moveData.y) > 0.05;
                 if (isMoving && anims.current !== "walk") {
                     if (anims.still) anims.still.stop();
@@ -151,6 +154,7 @@
                     if (anims.still) anims.still.start(true);
                     anims.current = "still";
                 }
+                
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
                 player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
