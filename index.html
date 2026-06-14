@@ -32,11 +32,9 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         
-        // 修正光照：使用均勻的環境光，防止特定點過亮
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
 
-        // 相機設定：強制移除自動旋轉，並將俯仰角調整至更適合的角度
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         camera.inputs.remove(camera.inputs.attached.pointers);
@@ -67,7 +65,7 @@
         }
 
         async function handleAuth() {
-            if (player) return; // 確保只會執行一次
+            if (player) return;
             try {
                 let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
@@ -75,7 +73,6 @@
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
 
-                // 產生地板
                 for(let x=-10; x<10; x++) {
                     for(let z=-10; z<10; z++) {
                         let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
@@ -108,7 +105,6 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    // 同步邏輯：只控制人物旋轉，相機自動跟隨
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.005;
                     rotData.lastX = info.event.clientX;
                 }
@@ -120,9 +116,9 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 強制同步：相機永遠鎖定在角色後方
                 camera.target = player.position.clone();
-                camera.alpha = -player.rotation.y - Math.PI / 2;
+                camera.beta = Math.PI / 3; // 強制鎖定仰角
+                camera.alpha = -player.rotation.y - Math.PI / 2; // 強制與人物旋轉同步
                 
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
