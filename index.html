@@ -32,6 +32,7 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         
+        // 修正燈光：柔和環境光，避免過曝
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8;
 
@@ -65,7 +66,7 @@
         }
 
         async function handleAuth() {
-            if (player) return;
+            if (player) return; // 防止重複載入
             try {
                 let isSignUp = document.getElementById('nickname').style.display === 'block';
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
@@ -73,6 +74,7 @@
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
 
+                // 生產 MC 地板
                 for(let x=-10; x<10; x++) {
                     for(let z=-10; z<10; z++) {
                         let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
@@ -86,6 +88,8 @@
                 BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                    // **關鍵修正：將角色模型在本地 Y 軸上旋轉 180 度，讓「眼睛」朝向另一邊**
+                    player.rotate(BABYLON.Axis.Y, Math.PI, BABYLON.Space.LOCAL);
                 });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
@@ -105,8 +109,8 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    // 使用 rotate 方法強制旋轉，避開屬性鎖定
-                    let delta = (info.event.clientX - rotData.lastX) * 0.01;
+                    // 同步旋轉邏輯：左/右滑動轉動角色
+                    let delta = (info.event.clientX - rotData.lastX) * 0.005;
                     player.rotate(BABYLON.Axis.Y, delta, BABYLON.Space.WORLD);
                     rotData.lastX = info.event.clientX;
                 }
@@ -118,9 +122,9 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
+                // 強制同步鎖定：相機永遠鎖定在角色後方，並保持固定仰角
                 camera.target = player.position.clone();
                 camera.beta = Math.PI / 3; 
-                // 同步相機角度：根據 player 目前的旋轉四元數來計算 alpha
                 camera.alpha = -player.rotationQuaternion.toEulerAngles().y - Math.PI / 2;
                 
                 // 計算移動
