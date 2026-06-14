@@ -32,10 +32,13 @@
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // 1. FollowCamera：鎖定目標，平滑跟隨
+        // 攝影機：強制鎖定在角色背後
         const camera = new BABYLON.FollowCamera("fCam", new BABYLON.Vector3(0, 5, -15), scene);
-        camera.radius = 15; camera.heightOffset = 4; camera.rotationOffset = 0;
-        camera.cameraAcceleration = 0.05; camera.maxCameraSpeed = 10;
+        camera.radius = 15;
+        camera.heightOffset = 4;
+        camera.rotationOffset = 0;
+        camera.cameraAcceleration = 0.05;
+        camera.maxCameraSpeed = 10;
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -76,20 +79,23 @@
 
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                // 左下角負責搖桿
                 if (info.event.clientX < 400 && info.event.clientY > window.innerHeight - 400) {
                     moveData.active = true; moveData.pointerId = info.event.pointerId;
-                } else { rotData.active = true; rotData.lastX = info.event.clientX; }
+                } else { 
+                    // 其餘螢幕範圍負責旋轉
+                    rotData.active = true; rotData.lastX = info.event.clientX; 
+                }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
                 if (moveData.active && info.event.pointerId === moveData.pointerId) {
                     let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                     let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
                     let angle = Math.atan2(dy, dx);
                     stick.left = Math.cos(angle) * dist; stick.top = Math.sin(angle) * dist;
-                    // moveData.y 為前後 (向上為負)，moveData.x 為左右
                     moveData.x = (Math.cos(angle) * dist) / 40; moveData.y = (Math.sin(angle) * dist) / 40;
                 } else if (rotData.active && player) {
                     let delta = info.event.clientX - rotData.lastX;
-                    player.rotation.y += delta * 0.01;
+                    player.rotation.y += delta * 0.01; // 旋轉速度
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
@@ -100,11 +106,11 @@
 
         scene.registerBeforeRender(() => {
             if (player && moveData.active) {
-                // 以角色 Y 軸旋轉為基準的前向與右向向量
+                // 計算角色的前方 (forward) 與 右方 (right)
                 const forward = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const right = new BABYLON.Vector3(forward.z, 0, -forward.x);
                 
-                // 組合移動：搖桿 y 為前後，x 為左右
+                // 根據搖桿輸入移動：x 是左右平移，y 是前後前進後退
                 const moveVector = forward.scale(-moveData.y).add(right.scale(moveData.x));
                 player.position.addInPlace(moveVector.scale(0.15));
             }
