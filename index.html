@@ -32,13 +32,13 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         
-        // 優化燈光：均勻環境光，避免過曝
+        // 燈光設定：改用柔和半球光，避免過曝
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.9;
 
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        camera.inputs.remove(camera.inputs.attached.pointers); // 移除相機原生觸控
+        camera.inputs.remove(camera.inputs.attached.pointers);
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -74,6 +74,17 @@
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
 
+                // 重新加入地板生成
+                for(let x=-10; x<10; x++) {
+                    for(let z=-10; z<10; z++) {
+                        let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
+                        block.position = new BABYLON.Vector3(x, -0.5, z);
+                        let mat = new BABYLON.StandardMaterial("m", scene);
+                        mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                        block.material = mat;
+                    }
+                }
+
                 BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
@@ -96,7 +107,6 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    // 同步旋轉：旋轉人物
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
@@ -108,10 +118,10 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 強制同步：相機永遠跟隨玩家轉向
                 camera.target = player.position.clone();
                 camera.alpha = -player.rotation.y - Math.PI / 2;
                 
+                // 修正移動向量，確保角色永遠朝向正確的前方移動
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
                 player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
@@ -123,4 +133,3 @@
     </script>
 </body>
 </html>
-
