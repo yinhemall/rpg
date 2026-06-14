@@ -97,13 +97,14 @@
             document.getElementById('start-ui').style.display = 'none';
             stickBase.isVisible = true;
 
-            for(let x=-10; x<10; x++) {
-                for(let z=-10; z<10; z++) {
-                    let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
-                    block.position = new BABYLON.Vector3(x, -0.5, z);
-                    let mat = new BABYLON.StandardMaterial("m", scene);
-                    mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
-                    block.material = mat;
+            // 產生 30x30 地面
+            for(let x = -15; x < 15; x++) {
+                for(let z = -15; z < 15; z++) {
+                    BABYLON.SceneLoader.ImportMesh("", "./", "tile.glb", scene, (meshes) => {
+                        let tile = meshes[0];
+                        tile.position = new BABYLON.Vector3(x, 0, z);
+                        tile.checkCollisions = true;
+                    });
                 }
             }
 
@@ -156,7 +157,6 @@
                 }
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
-                // 這裡將原本的 0.15 調整為 0.22 實現加速
                 player.position.addInPlace(fwd.scale(-moveData.y * 0.22).add(rgt.scale(moveData.x * 0.22)));
             }
         });
