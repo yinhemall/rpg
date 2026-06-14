@@ -32,7 +32,8 @@
         const scene = new BABYLON.Scene(engine);
         
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
-        camera.attachControl(canvas, true);
+        // 改為只有右鍵/非UI觸控時才主動鎖定控制
+        camera.attachControl(canvas, true); 
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
@@ -42,7 +43,7 @@
         stickBase.background = "rgba(255,255,255,0.2)";
         stickBase.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
         stickBase.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
-        stickBase.left = 50; stickBase.top = -50;
+        stickBase.left = 100; stickBase.top = -100;
         stickBase.isVisible = false;
         advancedTexture.addControl(stickBase);
 
@@ -52,7 +53,7 @@
         stickBase.addControl(stick);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let player = null, moveData = { active: false, x: 0, y: 0 };
+        let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null };
 
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
@@ -73,33 +74,37 @@
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
-        // --- 修正後的觸控邏輯 ---
+        // --- 修正後的觸控邏輯：精確識別手指 ID ---
         scene.onPointerObservable.add((info) => {
-            const pos = info.event.clientX !== undefined ? {x: info.event.clientX, y: info.event.clientY} : {x: info.event.touches[0].clientX, y: info.event.touches[0].clientY};
-            
-            // 檢查觸控點是否在搖桿區域內
-            const rect = stickBase.getScene().getEngine().getRenderingCanvasClientRect();
-            const isInsideStick = (pos.x < 250 && pos.y > window.innerHeight - 250);
+            const event = info.event;
+            const pointerId = event.pointerId;
 
-            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN && isInsideStick) {
-                moveData.active = true;
-            } 
-            
-            if (moveData.active) {
-                if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
-                    let centerX = 125, centerY = window.innerHeight - 125;
-                    let dx = pos.x - centerX, dy = pos.y - centerY;
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                // 判斷是否點擊在搖桿區域 (簡單的座標範圍判斷)
+                if (event.clientX < 250 && event.clientY > window.innerHeight - 250) {
+                    moveData.active = true;
+                    moveData.pointerId = pointerId;
+                }
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
+                if (pointerId === moveData.pointerId) {
+                    let centerX = 100 + 75; // 搖桿中心 X
+                    let centerY = window.innerHeight - 100 - 75; // 搖桿中心 Y
+                    let dx = event.clientX - centerX;
+                    let dy = event.clientY - centerY;
                     let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
                     let angle = Math.atan2(dy, dx);
                     stick.left = Math.cos(angle) * dist;
                     stick.top = Math.sin(angle) * dist;
                     moveData.x = (Math.cos(angle) * dist) / 40;
                     moveData.y = (Math.sin(angle) * dist) / 40;
-                } else if (info.type === BABYLON.PointerEventTypes.POINTERUP || info.type === BABYLON.PointerEventTypes.POINTEROUT) {
-                    moveData.active = false; stick.left = 0; stick.top = 0;
                 }
-                // 重要：如果在搖桿內，停止攝影機事件傳遞
-                info.event.preventDefault();
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP || info.type === BABYLON.PointerEventTypes.POINTERCANCEL) {
+                if (pointerId === moveData.pointerId) {
+                    moveData.active = false;
+                    moveData.pointerId = null;
+                    stick.left = 0; stick.top = 0;
+                    moveData.x = 0; moveData.y = 0;
+                }
             }
         });
 
