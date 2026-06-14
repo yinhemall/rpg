@@ -33,14 +33,16 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
         
-        // 燈光優化：使用 HemisphericLight 並關閉反光 (specular) 以消除異常光斑
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         light.intensity = 0.8; 
-        light.diffuse = new BABYLON.Color3(1, 1, 1);
         light.specular = new BABYLON.Color3(0, 0, 0); 
         
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
+
+        // 虛擬搖桿變數
+        let leftJoystick;
+        let player = null;
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let isSignUp = false;
@@ -62,30 +64,54 @@
         }
 
         function loadModel() {
-            // 建立地板
             const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-            ground.position.y = 0;
             const groundMat = new BABYLON.StandardMaterial("groundMat", scene);
             groundMat.diffuseColor = new BABYLON.Color3(0.3, 0.6, 0.3);
-            groundMat.specularColor = new BABYLON.Color3(0, 0, 0); // 地板也不要反光
+            groundMat.specularColor = new BABYLON.Color3(0, 0, 0);
             ground.material = groundMat;
+
+            // 初始化虛擬搖桿
+            leftJoystick = new BABYLON.VirtualJoystick(true);
+            leftJoystick.setJoystickSensibility(0.5);
 
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 if(meshes.length > 0) {
-                    const player = meshes[0];
+                    player = meshes[0];
                     player.scaling = new BABYLON.Vector3(2, 2, 2);
-                    // 修正角色高度：若角色浮在空中，這裡設為負值 (例如 -2)
-                    player.position.y = -0.1; 
-                    
-                    // 將攝影機目標設為角色，確保對焦正確
+                    player.position.y = 0; 
                     camera.target = player;
-                    
-                    console.log("模型已載入，高度已修正");
+                    console.log("模型已載入，搖桿已啟用");
                 }
-            }, null, (s, m) => { alert("模型載入失敗: " + m); });
+            });
         }
 
+        // 移動邏輯：每幀執行
+        scene.registerBeforeRender(() => {
+            if (player && leftJoystick.pressed) {
+                // 根據相機角度計算移動方向
+                const forward = camera.getForwardRay().direction;
+                forward.y = 0;
+                forward.normalize();
+                const right = BABYLON.Vector3.Cross(forward, BABYLON.Vector3.Up());
+
+                const moveX = leftJoystick.deltaPosition.x;
+                const moveY = leftJoystick.deltaPosition.y;
+
+                // 應用移動
+                player.position.addInPlace(forward.scale(-moveY * 0.2));
+                player.position.addInPlace(right.scale(moveX * 0.2));
+                
+                // 讓角色旋轉至移動方向
+                const targetRotation = Math.atan2(moveX, -moveY);
+                player.rotation.y = targetRotation + camera.alpha + Math.PI/2;
+            }
+        });
+
         engine.runRenderLoop(() => scene.render());
+
+        window.addEventListener("resize", () => {
+            engine.resize();
+        });
     </script>
 </body>
 </html>
