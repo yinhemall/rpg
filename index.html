@@ -32,12 +32,12 @@
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-        // --- MC 風格：ArcRotateCamera ---
-        // 我們將 beta 限制在一個範圍內，避免視角過度俯仰導致的問題
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
+        // 使用 ArcRotateCamera 作為第三人稱攝影機
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        camera.upperBetaLimit = Math.PI / 2.1; // 防止相機穿地
+        // 增加靈敏度，讓轉視角更順手
+        camera.angularSensibilityX = camera.angularSensibilityY = 1000;
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -94,20 +94,22 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 1. 視角跟隨：讓相機永遠以角色為中心
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
-
+                
                 if (moveData.active) {
-                    // 2. 移動邏輯：只投影在 Y=0 平面 (忽略相機傾斜)
-                    const forward = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha)).normalize();
-                    const right = new BABYLON.Vector3(forward.z, 0, -forward.x).normalize();
+                    // --- MC 核心移動邏輯 ---
+                    // 將搖桿輸入 (x, y) 轉換為世界空間向量
+                    // 根據相機目前的水平旋轉 (alpha) 來調整方向
+                    const forward = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha));
+                    const right = new BABYLON.Vector3(forward.z, 0, -forward.x);
                     
-                    const moveDir = forward.scale(-moveData.y).add(right.scale(moveData.x));
+                    const moveDir = forward.scale(-moveData.y).add(right.scale(moveData.x)).normalize();
+                    
+                    // 套用移動
                     player.position.addInPlace(moveDir.scale(0.15));
                     
-                    // 3. 轉向邏輯：讓模型轉向行進方向
-                    const targetRotation = Math.atan2(moveDir.x, moveDir.z);
-                    player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetRotation, 0.2);
+                    // 讓角色旋轉至面向移動方向
+                    player.rotation.y = Math.atan2(moveDir.x, moveDir.z);
                 }
             }
         });
