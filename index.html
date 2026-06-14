@@ -32,11 +32,13 @@
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // --- 設定攝影機 ---
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI / 2, Math.PI / 3, 15, BABYLON.Vector3.Zero(), scene);
+        // 1. ArcRotateCamera 是最標準的第三人稱相機
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        
+        // 限制相機轉動手感，讓觸控轉動更穩定
+        camera.angularSensibilityX = camera.angularSensibilityY = 800;
+
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
@@ -74,8 +76,10 @@
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
+        // 觸控分離邏輯
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                // 只有點擊左下角區域才會啟動搖桿
                 if (info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
                     moveData.active = true; moveData.pointerId = info.event.pointerId;
                 }
@@ -95,16 +99,19 @@
         scene.registerBeforeRender(() => {
             if (player) {
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
-
                 if (moveData.active) {
-                    // --- 修正移動邏輯 ---
-                    // 使用相機的 alpha 水平旋轉來重新對齊輸入方向
-                    const inputAngle = Math.atan2(moveData.x, -moveData.y);
-                    const finalAngle = inputAngle + camera.alpha + Math.PI / 2;
+                    // 核心：基於攝影機的視角方向來計算移動
+                    // 獲取攝影機平面方向 (忽略垂直角度)
+                    const fwd = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha));
+                    const right = new BABYLON.Vector3(fwd.z, 0, -fwd.x); // 計算右側向量
                     
-                    player.position.x += Math.cos(finalAngle) * 0.15;
-                    player.position.z += Math.sin(finalAngle) * 0.15;
-                    player.rotation.y = -finalAngle + Math.PI / 2;
+                    // 組合移動向量
+                    const moveVector = fwd.scale(-moveData.y).add(right.scale(moveData.x));
+                    player.position.addInPlace(moveVector.scale(0.15));
+                    
+                    // 讓玩家平滑轉向移動方向
+                    const targetAngle = Math.atan2(moveVector.x, moveVector.z);
+                    player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetAngle, 0.2);
                 }
             }
         });
