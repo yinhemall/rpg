@@ -77,11 +77,12 @@
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
                 if (moveData.active && info.event.pointerId === moveData.id) {
+                    // 相對於搖桿中心的偏移
                     let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                     let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
-                    let angle = Math.atan2(dy, dx);
-                    stick.left = Math.cos(angle) * dist; stick.top = Math.sin(angle) * dist;
-                    moveData.x = (Math.cos(angle) * dist) / 50; moveData.y = (Math.sin(angle) * dist) / 50;
+                    let angle = Math.atan2(dx, -dy); // 修正旋轉基準
+                    stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
+                    moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
@@ -96,7 +97,7 @@
             if (player) {
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
-                player.position.addInPlace(fwd.scale(-moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
+                player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
             }
         });
 
