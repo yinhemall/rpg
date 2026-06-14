@@ -56,6 +56,7 @@
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let player = null, moveData = { active: false, x: 0, y: 0, id: null }, rotData = { active: false, id: null, lastX: 0 };
+        let anims = { walk: null, still: null, current: null };
 
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
@@ -83,22 +84,25 @@
                     }
                 }
 
-                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m, ps, ag) => { 
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
                     player.rotationQuaternion = null; 
-                    player.rotation.y = 0; 
+                    player.rotation.y = 0;
+                    
+                    // 取得動畫群組
+                    anims.walk = scene.getAnimationGroupByName("walking_test");
+                    anims.still = scene.getAnimationGroupByName("still_test");
+                    
+                    if (anims.still) { anims.still.start(true); anims.current = "still"; }
                 });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                if (info.event.clientX < window.innerWidth / 2) {
-                    moveData.active = true; moveData.id = info.event.pointerId;
-                } else {
-                    rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX;
-                }
+                if (info.event.clientX < window.innerWidth / 2) { moveData.active = true; moveData.id = info.event.pointerId; }
+                else { rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX; }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
                 if (moveData.active && info.event.pointerId === moveData.id) {
                     let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
@@ -107,13 +111,12 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    // 正確的旋轉係數，確保左右手勢與視角一致
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
                 if (info.event.pointerId === moveData.id) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
-                if (info.event.pointerId === rotData.id) { rotData.active = false; }
+                if (info.event.pointerId === rotData.id) rotData.active = false;
             }
         });
 
@@ -122,6 +125,17 @@
                 camera.target = player.position.clone();
                 camera.beta = Math.PI / 3;
                 camera.alpha = -player.rotation.y + Math.PI / 2;
+                
+                const isMoving = Math.abs(moveData.x) > 0.05 || Math.abs(moveData.y) > 0.05;
+                if (isMoving && anims.current !== "walk") {
+                    if (anims.still) anims.still.stop();
+                    if (anims.walk) anims.walk.start(true);
+                    anims.current = "walk";
+                } else if (!isMoving && anims.current !== "still") {
+                    if (anims.walk) anims.walk.stop();
+                    if (anims.still) anims.still.start(true);
+                    anims.current = "still";
+                }
                 
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
