@@ -32,12 +32,10 @@
         const scene = new BABYLON.Scene(engine);
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
+        // 1. FollowCamera：鎖定目標，平滑跟隨
         const camera = new BABYLON.FollowCamera("fCam", new BABYLON.Vector3(0, 5, -15), scene);
-        camera.radius = 15;
-        camera.heightOffset = 4;
-        camera.rotationOffset = 0;
-        camera.cameraAcceleration = 0.05;
-        camera.maxCameraSpeed = 10;
+        camera.radius = 15; camera.heightOffset = 4; camera.rotationOffset = 0;
+        camera.cameraAcceleration = 0.05; camera.maxCameraSpeed = 10;
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -55,7 +53,7 @@
         stickBase.addControl(stick);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
-        let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null }, rotData = { active: false, deltaX: 0 };
+        let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null }, rotData = { active: false, lastX: 0 };
 
         function toggleMode() {
             let isSignUp = document.getElementById('nickname').style.display !== 'none';
@@ -80,15 +78,20 @@
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
                 if (info.event.clientX < 400 && info.event.clientY > window.innerHeight - 400) {
                     moveData.active = true; moveData.pointerId = info.event.pointerId;
-                } else { rotData.active = true; }
+                } else { rotData.active = true; rotData.lastX = info.event.clientX; }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
                 if (moveData.active && info.event.pointerId === moveData.pointerId) {
                     let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
                     let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
                     let angle = Math.atan2(dy, dx);
                     stick.left = Math.cos(angle) * dist; stick.top = Math.sin(angle) * dist;
+                    // moveData.y 為前後 (向上為負)，moveData.x 為左右
                     moveData.x = (Math.cos(angle) * dist) / 40; moveData.y = (Math.sin(angle) * dist) / 40;
-                } else if (rotData.active) { rotData.deltaX = info.event.movementX || 0; }
+                } else if (rotData.active && player) {
+                    let delta = info.event.clientX - rotData.lastX;
+                    player.rotation.y += delta * 0.01;
+                    rotData.lastX = info.event.clientX;
+                }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
                 if (info.event.pointerId === moveData.pointerId) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
                 rotData.active = false;
@@ -96,23 +99,14 @@
         });
 
         scene.registerBeforeRender(() => {
-            if (player) {
-                // 1. 旋轉：畫面平滑轉動
-                if (rotData.active) player.rotation.y += rotData.deltaX * 0.02;
+            if (player && moveData.active) {
+                // 以角色 Y 軸旋轉為基準的前向與右向向量
+                const forward = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+                const right = new BABYLON.Vector3(forward.z, 0, -forward.x);
                 
-                // 2. 移動：使用 Matrix 轉換，將本地坐標變換為世界坐標
-                if (moveData.active) {
-                    const speed = 0.15;
-                    // 以角色為基準的前後左右向量
-                    const localForward = new BABYLON.Vector3(0, 0, -moveData.y); 
-                    const localRight = new BABYLON.Vector3(moveData.x, 0, 0);
-                    
-                    const worldMatrix = player.getWorldMatrix();
-                    const worldDir = BABYLON.Vector3.TransformNormal(localForward.add(localRight), worldMatrix);
-                    
-                    player.position.addInPlace(worldDir.scale(speed));
-                }
-                rotData.deltaX = 0;
+                // 組合移動：搖桿 y 為前後，x 為左右
+                const moveVector = forward.scale(-moveData.y).add(right.scale(moveData.x));
+                player.position.addInPlace(moveVector.scale(0.15));
             }
         });
 
