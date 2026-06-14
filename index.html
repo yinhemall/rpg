@@ -31,12 +31,13 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
-        new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // 相機鎖定
+        // 修正光照：使用日光燈，避免局部過亮
+        const light = new BABYLON.DirectionalLight("sun", new BABYLON.Vector3(-0.5, -1, -0.5), scene);
+        light.intensity = 1.2;
+
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        camera.attachControl(canvas, false);
 
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
@@ -71,7 +72,6 @@
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
 
-                // 產生 MC 風格地板
                 for(let x=-10; x<10; x++) {
                     for(let z=-10; z<10; z++) {
                         let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
@@ -104,7 +104,7 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
+                    player.rotation.y += (info.event.clientX - rotData.lastX) * 0.005; // 調整旋轉速度
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
@@ -115,7 +115,11 @@
 
         scene.registerBeforeRender(() => {
             if (player) {
+                // 相機永遠凝視角色，並根據角色朝向做視角偏移
                 camera.target = player.position;
+                camera.alpha = -player.rotation.y - Math.PI/2; 
+                
+                // 根據角色朝向移動
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
                 player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
