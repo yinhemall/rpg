@@ -10,9 +10,20 @@
     <style>
         body { margin: 0; overflow: hidden; background: #87CEEB; touch-action: none; }
         #renderCanvas { width: 100vw; height: 100vh; display: block; touch-action: none; }
+        #ui { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #111; padding: 20px; border: 1px solid #0ff; color: #fff; z-index: 999; border-radius: 15px; width: 80%; text-align: center; }
+        input { display: block; margin: 10px auto; padding: 10px; width: 90%; background: #222; color: #fff; border: 1px solid #444; }
+        button { padding: 10px 20px; margin: 5px; color: #0ff; background: transparent; border: 1px solid #0ff; }
     </style>
 </head>
 <body>
+    <div id="ui">
+        <h3 id="ui-title">系統登入</h3>
+        <input type="email" id="email" placeholder="Email">
+        <input type="password" id="password" placeholder="密碼">
+        <input type="text" id="nickname" placeholder="暱稱" style="display:none;">
+        <button id="main-btn" onclick="handleAuth()">登入</button>
+        <button onclick="toggleMode()">切換註冊/登入</button>
+    </div>
     <canvas id="renderCanvas"></canvas>
 
     <script>
@@ -21,58 +32,96 @@
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color3(0.53, 0.81, 0.92);
         
-        // 1. 全域平均亮度：使用強度適中的半球光
+        // 平均亮度光源
         const light = new BABYLON.HemisphericLight("light1", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.8; 
+        light.intensity = 0.8;
 
-        // 2. 視角調整：beta 改為 Math.PI / 3 讓視角更平緩
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
-        // 移除相機原生觸控，改用我們自定義的旋轉邏輯
         camera.inputs.remove(camera.inputs.attached.pointers);
 
-        let player = null;
-        let rotData = { active: false, lastX: 0 };
+        const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+        const stickBase = new BABYLON.GUI.Ellipse();
+        stickBase.width = "150px"; stickBase.height = "150px";
+        stickBase.background = "rgba(255,255,255,0.2)";
+        stickBase.horizontalAlignment = BABYLON.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+        stickBase.verticalAlignment = BABYLON.GUI.Control.VERTICAL_ALIGNMENT_BOTTOM;
+        stickBase.left = 100; stickBase.top = -100;
+        stickBase.isVisible = false; 
+        advancedTexture.addControl(stickBase);
 
-        // 建立地板
-        for(let x=-10; x<10; x++) {
-            for(let z=-10; z<10; z++) {
-                let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
-                block.position = new BABYLON.Vector3(x, -0.5, z);
-                let mat = new BABYLON.StandardMaterial("m", scene);
-                mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
-                block.material = mat;
-            }
+        const stick = new BABYLON.GUI.Ellipse();
+        stick.width = "70px"; stick.height = "70px";
+        stick.background = "white";
+        stickBase.addControl(stick);
+
+        const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
+        let player = null, moveData = { active: false, x: 0, y: 0, id: null }, rotData = { active: false, id: null, lastX: 0 };
+
+        function toggleMode() {
+            let isSignUp = document.getElementById('nickname').style.display !== 'none';
+            document.getElementById('ui-title').innerText = isSignUp ? "系統登入" : "系統註冊";
+            document.getElementById('main-btn').innerText = isSignUp ? "登入" : "註冊";
+            document.getElementById('nickname').style.display = isSignUp ? "none" : "block";
         }
 
-        BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
-            player = m[0]; 
-            player.scaling = new BABYLON.Vector3(2, 2, 2); 
-        });
+        async function handleAuth() {
+            if (player) return;
+            try {
+                let isSignUp = document.getElementById('nickname').style.display === 'block';
+                const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
+                if (error) throw error;
+                document.getElementById('ui').style.display = 'none';
+                stickBase.isVisible = true;
 
-        // 3. 旋轉同步：滑動右半邊螢幕直接旋轉人物
+                for(let x=-10; x<10; x++) {
+                    for(let z=-10; z<10; z++) {
+                        let block = BABYLON.MeshBuilder.CreateBox("b", {size: 1}, scene);
+                        block.position = new BABYLON.Vector3(x, -0.5, z);
+                        let mat = new BABYLON.StandardMaterial("m", scene);
+                        mat.diffuseColor = new BABYLON.Color3(0.2, 0.8, 0.2);
+                        block.material = mat;
+                    }
+                }
+
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
+                    player = m[0]; 
+                    player.scaling = new BABYLON.Vector3(2, 2, 2); 
+                });
+            } catch (err) { alert("登入失敗: " + err.message); }
+        }
+
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                if (info.event.clientX > window.innerWidth / 2) {
-                    rotData.active = true;
-                    rotData.lastX = info.event.clientX;
+                if (info.event.clientX < window.innerWidth / 2) {
+                    moveData.active = true; moveData.id = info.event.pointerId;
+                } else {
+                    rotData.active = true; rotData.id = info.event.pointerId; rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE) {
-                if (rotData.active && player) {
-                    // 直接修改人物旋轉
+                if (moveData.active && info.event.pointerId === moveData.id) {
+                    let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
+                    let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 50);
+                    let angle = Math.atan2(dx, -dy);
+                    stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
+                    moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
+                } else if (rotData.active && info.event.pointerId === rotData.id && player) {
                     player.rotation.y += (info.event.clientX - rotData.lastX) * 0.005;
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
-                rotData.active = false;
+                if (info.event.pointerId === moveData.id) { moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0; }
+                if (info.event.pointerId === rotData.id) { rotData.active = false; }
             }
         });
 
         scene.registerBeforeRender(() => {
             if (player) {
-                // 強制相機目標鎖定角色，並讓 alpha 永遠對應角色的旋轉
                 camera.target = player.position.clone();
                 camera.alpha = -player.rotation.y - Math.PI / 2;
+                const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
+                const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
+                player.position.addInPlace(fwd.scale(moveData.y * 0.15).add(rgt.scale(moveData.x * 0.15)));
             }
         });
 
