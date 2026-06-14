@@ -30,20 +30,12 @@
         const canvas = document.getElementById("renderCanvas");
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
-        
-        // 燈光與環境
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
         
-        // 攝影機設定：改用 FollowCamera 以確保平滑跟隨且固定背面視角
-        const camera = new BABYLON.FollowCamera("FollowCam", new BABYLON.Vector3(0, 5, -10), scene);
-        camera.radius = 10;
-        camera.heightOffset = 3;
-        camera.rotationOffset = 180; 
-        camera.cameraAcceleration = 0.05;
-        camera.maxCameraSpeed = 20;
+        // 攝影機：使用 FreeCamera 手動控制，這樣它才不會有任何「自動跟隨導致的視角抬升」
+        const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 5, -10), scene);
         camera.attachControl(canvas, true);
 
-        // GUI 搖桿
         const advancedTexture = BABYLON.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
         const stickBase = new BABYLON.GUI.Ellipse();
         stickBase.width = "150px"; stickBase.height = "150px";
@@ -59,7 +51,6 @@
         stick.background = "white";
         stickBase.addControl(stick);
 
-        // 登入邏輯
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let player = null, moveData = { active: false, x: 0, y: 0, pointerId: null };
 
@@ -78,20 +69,14 @@
                 document.getElementById('ui').style.display = 'none';
                 stickBase.isVisible = true;
                 BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { 
-                    player = m[0]; 
-                    player.scaling = new BABYLON.Vector3(2, 2, 2); 
-                    camera.lockedTarget = player; // 將相機鎖定在角色身上
-                });
+                BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (m) => { player = m[0]; player.scaling = new BABYLON.Vector3(2, 2, 2); });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
-        // 觸控事件
         scene.onPointerObservable.add((info) => {
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
                 if (info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
-                    moveData.active = true;
-                    moveData.pointerId = info.event.pointerId;
+                    moveData.active = true; moveData.pointerId = info.event.pointerId;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
                 let dx = info.event.clientX - 175, dy = info.event.clientY - (window.innerHeight - 175);
@@ -106,14 +91,20 @@
             }
         });
 
-        // 渲染循環
         scene.registerBeforeRender(() => {
-            if (player && moveData.active) {
-                const forward = player.forward;
-                const right = player.right;
-                player.position.addInPlace(forward.scale(-moveData.y * 0.15));
-                player.position.addInPlace(right.scale(moveData.x * 0.15));
-                player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.rotation.y;
+            if (player) {
+                // 讓相機跟隨角色位置，但不使用 FollowCamera 的自動旋轉機制
+                const targetPos = player.position.add(new BABYLON.Vector3(0, 2, -8));
+                camera.position = BABYLON.Vector3.Lerp(camera.position, targetPos, 0.1);
+                camera.setTarget(player.position);
+
+                if (moveData.active) {
+                    // 以攝影機的 Y 軸旋轉為基準來計算移動，這能確保方向感正確
+                    const angle = Math.atan2(moveData.x, -moveData.y) + camera.rotation.y;
+                    player.position.x += Math.sin(angle) * 0.15;
+                    player.position.z += Math.cos(angle) * 0.15;
+                    player.rotation.y = angle;
+                }
             }
         });
 
