@@ -31,9 +31,10 @@
         const engine = new BABYLON.Engine(canvas, true);
         const scene = new BABYLON.Scene(engine);
         
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
-        // 改為只有右鍵/非UI觸控時才主動鎖定控制
-        camera.attachControl(canvas, true); 
+        // --- 改用 ArcRotateCamera 但降低自動鎖定敏感度 ---
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/3, 15, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
+        camera.inputs.attached.pointers.buttons = [0]; // 只允許左鍵/單指旋轉
         camera.lowerRadiusLimit = camera.upperRadiusLimit = 15;
         new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
@@ -74,49 +75,44 @@
             } catch (err) { alert("登入失敗: " + err.message); }
         }
 
-        // --- 修正後的觸控邏輯：精確識別手指 ID ---
         scene.onPointerObservable.add((info) => {
-            const event = info.event;
-            const pointerId = event.pointerId;
-
             if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
-                // 判斷是否點擊在搖桿區域 (簡單的座標範圍判斷)
-                if (event.clientX < 250 && event.clientY > window.innerHeight - 250) {
+                if (info.event.clientX < 300 && info.event.clientY > window.innerHeight - 300) {
                     moveData.active = true;
-                    moveData.pointerId = pointerId;
+                    moveData.pointerId = info.event.pointerId;
                 }
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
-                if (pointerId === moveData.pointerId) {
-                    let centerX = 100 + 75; // 搖桿中心 X
-                    let centerY = window.innerHeight - 100 - 75; // 搖桿中心 Y
-                    let dx = event.clientX - centerX;
-                    let dy = event.clientY - centerY;
-                    let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
-                    let angle = Math.atan2(dy, dx);
-                    stick.left = Math.cos(angle) * dist;
-                    stick.top = Math.sin(angle) * dist;
-                    moveData.x = (Math.cos(angle) * dist) / 40;
-                    moveData.y = (Math.sin(angle) * dist) / 40;
-                }
-            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP || info.type === BABYLON.PointerEventTypes.POINTERCANCEL) {
-                if (pointerId === moveData.pointerId) {
-                    moveData.active = false;
-                    moveData.pointerId = null;
-                    stick.left = 0; stick.top = 0;
-                    moveData.x = 0; moveData.y = 0;
-                }
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active && info.event.pointerId === moveData.pointerId) {
+                let centerX = 175, centerY = window.innerHeight - 175;
+                let dx = info.event.clientX - centerX, dy = info.event.clientY - centerY;
+                let dist = Math.min(Math.sqrt(dx*dx + dy*dy), 40);
+                let angle = Math.atan2(dy, dx);
+                stick.left = Math.cos(angle) * dist;
+                stick.top = Math.sin(angle) * dist;
+                moveData.x = (Math.cos(angle) * dist) / 40;
+                moveData.y = (Math.sin(angle) * dist) / 40;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP && info.event.pointerId === moveData.pointerId) {
+                moveData.active = false; stick.left = 0; stick.top = 0; moveData.x = 0; moveData.y = 0;
             }
         });
 
         scene.registerBeforeRender(() => {
             if (player) {
-                camera.target = player.position.add(new BABYLON.Vector3(0, 1.5, 0));
+                // 這裡最關鍵：不要強制設定 camera.target = player，而是讓相機跟隨
+                // 這能避免移動時視角被強行拉動，導致你看起來像一直看著背面
+                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1, 0)), 0.1);
+
                 if (moveData.active) {
-                    const fwd = new BABYLON.Vector3(-Math.sin(camera.alpha), 0, -Math.cos(camera.alpha));
+                    // 使用相機的正確旋轉計算方向，並且不影響相機本身的視角
+                    const yaw = camera.alpha;
+                    const fwd = new BABYLON.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
                     const right = new BABYLON.Vector3(-fwd.z, 0, fwd.x);
-                    player.position.addInPlace(fwd.scale(-moveData.y * 0.15));
-                    player.position.addInPlace(right.scale(moveData.x * 0.15));
-                    player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha;
+                    
+                    const moveDir = fwd.scale(-moveData.y).add(right.scale(moveData.x));
+                    player.position.addInPlace(moveDir.scale(0.15));
+                    
+                    // 讓角色轉向移動方向
+                    const targetRotation = Math.atan2(moveData.x, -moveData.y) + yaw;
+                    player.rotation.y = BABYLON.Scalar.LerpAngle(player.rotation.y, targetRotation, 0.2);
                 }
             }
         });
