@@ -34,16 +34,18 @@
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
         
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.8; 
-        light.specular = new BABYLON.Color3(0, 0, 0); 
-        
+        light.intensity = 0.8;
+        light.specular = new BABYLON.Color3(0, 0, 0);
+
         const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
         camera.attachControl(canvas, true);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let isSignUp = false;
-        let leftJoystick, player;
+        let player = null;
+        let moveData = { active: false, x: 0, y: 0 };
 
+        // --- 登入系統邏輯 (完全保留) ---
         function toggleMode() {
             isSignUp = !isSignUp;
             document.getElementById('ui-title').innerText = isSignUp ? "系統註冊" : "系統登入";
@@ -60,43 +62,38 @@
             } catch (err) { alert("登入錯誤: " + err.message); }
         }
 
+        // --- 遊戲邏輯 ---
         function loadModel() {
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-            ground.material = new BABYLON.StandardMaterial("gMat", scene);
-            ground.material.diffuseColor = new BABYLON.Color3(0.3, 0.6, 0.3);
-
-            // 限制搖桿只在左半邊 (VirtualJoystick 內建觸控處理)
-            leftJoystick = new BABYLON.VirtualJoystick(true);
-            
+            BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
-                console.log("模型已載入，搖桿已啟用");
             });
         }
 
+        // 觸控監聽：左邊移動，右邊轉視角
+        scene.onPointerObservable.add((info) => {
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                if (info.event.clientX < window.innerWidth / 2) moveData.active = true;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
+                moveData.x = (info.event.clientX / (window.innerWidth / 2) - 1);
+                moveData.y = (info.event.clientY / window.innerHeight - 0.5) * 2;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
+                moveData.active = false;
+            }
+        });
+
         scene.registerBeforeRender(() => {
             if (player) {
-                // 相機始終跟隨角色
                 camera.target = player.position.add(new BABYLON.Vector3(0, 1, 0));
-
-                // 只有當搖桿按下時才移動
-                if (leftJoystick.pressed) {
-                    // 計算基於攝影機朝向的平面向量
+                if (moveData.active) {
                     const fwd = camera.getForwardRay().direction;
                     fwd.y = 0; fwd.normalize();
                     const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up());
-
-                    const moveX = leftJoystick.deltaPosition.x;
-                    const moveY = leftJoystick.deltaPosition.y;
-
-                    // 移動邏輯
-                    const moveSpeed = 0.2;
-                    player.position.addInPlace(fwd.scale(-moveY * moveSpeed));
-                    player.position.addInPlace(right.scale(moveX * moveSpeed));
                     
-                    // 角色跟隨移動方向與視角旋轉
-                    player.rotation.y = Math.atan2(moveX, -moveY) + camera.alpha + Math.PI/2;
+                    player.position.addInPlace(fwd.scale(-moveData.y * 0.2));
+                    player.position.addInPlace(right.scale(moveData.x * 0.2));
+                    player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI/2;
                 }
             }
         });
