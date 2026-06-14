@@ -34,19 +34,19 @@
         scene.clearColor = new BABYLON.Color4(0.5, 0.7, 0.9, 1);
         
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-        light.intensity = 0.8; 
-        light.specular = new BABYLON.Color3(0, 0, 0); 
-        
-        // --- 核心修正 1：相機初始設定 ---
-        // 把目標設在 y=2 的位置 (角色頭部上方)
-        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 20, new BABYLON.Vector3(0, 2, 0), scene);
-        // camera.attachControl(canvas, true); // 【暫時取消】直接讓相機跟隨，不讓玩家自由旋轉
+        light.intensity = 0.8;
+        light.specular = new BABYLON.Color3(0, 0, 0);
+
+        const camera = new BABYLON.ArcRotateCamera("cam", -Math.PI/2, Math.PI/4, 15, BABYLON.Vector3.Zero(), scene);
+        camera.attachControl(canvas, true);
 
         const sb = supabase.createClient('https://njxwgiqhlwkybtmbmvto.supabase.co', 'sb_publishable_aAhb31EsthrP6PTDOk4dgw_Ww_y-orM', { auth: { persistSession: false } });
         let isSignUp = false;
-        let leftJoystick, player;
-        let modelLoaded = false; // 【核心修正 2：防止重複載入】
+        let player = null;
+        let moveData = { active: false, x: 0, y: 0 };
+        let isLoaded = false;
 
+        // --- 登入/註冊系統 (完全不動) ---
         function toggleMode() {
             isSignUp = !isSignUp;
             document.getElementById('ui-title').innerText = isSignUp ? "系統註冊" : "系統登入";
@@ -55,60 +55,49 @@
         }
 
         async function handleAuth() {
-            if (modelLoaded) return; // 模型載入中或已載入，直接返回
-            
             try {
                 const { error } = isSignUp ? await sb.auth.signUp({ email: document.getElementById('email').value, password: document.getElementById('password').value }) : await sb.auth.signInWithPassword({ email: document.getElementById('email').value, password: document.getElementById('password').value });
                 if (error) throw error;
                 document.getElementById('ui').style.display = 'none';
-                modelLoaded = true; // 認證成功，鎖定載入鎖
-                loadModel();
-            } catch (err) { alert("登入錯誤: " + err.message); modelLoaded = false; }
+                if(!isLoaded) loadModel();
+            } catch (err) { alert("登入錯誤: " + err.message); }
         }
 
         // --- 遊戲邏輯 ---
         function loadModel() {
-            const ground = BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
-            ground.material = new BABYLON.StandardMaterial("gMat", scene);
-            ground.material.diffuseColor = new BABYLON.Color3(0.3, 0.6, 0.3);
-
-            // 啟用搖桿 (這會佔據螢幕左半邊觸控區)
-            leftJoystick = new BABYLON.VirtualJoystick(true);
-            
+            isLoaded = true;
+            BABYLON.MeshBuilder.CreateGround("ground", {width: 100, height: 100}, scene);
             BABYLON.SceneLoader.ImportMesh("", "./", "minecraft.glb", scene, (meshes) => {
                 player = meshes[0];
                 player.scaling = new BABYLON.Vector3(2, 2, 2);
-                player.position.y = 0; 
-                console.log("模型已載入，搖桿已啟用，相機已對焦");
             });
         }
 
-        // --- 核心修正 3：相機跟隨與移動邏輯 ---
+        // 觸控分區監聽
+        scene.onPointerObservable.add((info) => {
+            if (info.type === BABYLON.PointerEventTypes.POINTERDOWN) {
+                if (info.event.clientX < window.innerWidth / 2) moveData.active = true;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERMOVE && moveData.active) {
+                moveData.x = (info.event.clientX / (window.innerWidth / 2) - 1);
+                moveData.y = (info.event.clientY / window.innerHeight - 0.5) * 2;
+            } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
+                moveData.active = false;
+            }
+        });
+
         scene.registerBeforeRender(() => {
             if (player) {
-                // 1. 強制讓相機的 alpha 和 beta 與角色的旋轉同步 (保持後上方)
-                // Math.PI/2 = 向後，Math.PI/3 = 向上
-                camera.alpha = -player.rotation.y + Math.PI / 2;
-                camera.beta = Math.PI / 3;
-
-                // 2. 更新攝影機目標位置 (角色上方)
-                camera.target = player.position.add(new BABYLON.Vector3(0, 2, 0));
-
-                if (leftJoystick.pressed) {
-                    // 根據相機角度計算移動方向 (y=0 強制水平移動)
+                // 平滑跟隨角色頭部
+                camera.target = BABYLON.Vector3.Lerp(camera.target, player.position.add(new BABYLON.Vector3(0, 1, 0)), 0.1);
+                
+                if (moveData.active) {
                     const fwd = camera.getForwardRay().direction;
                     fwd.y = 0; fwd.normalize();
                     const right = BABYLON.Vector3.Cross(fwd, BABYLON.Vector3.Up());
-
-                    const moveX = leftJoystick.deltaPosition.x;
-                    const moveY = leftJoystick.deltaPosition.y;
-
-                    const moveSpeed = 0.2;
-                    player.position.addInPlace(fwd.scale(-moveY * moveSpeed));
-                    player.position.addInPlace(right.scale(moveX * moveSpeed));
                     
-                    // 讓角色旋轉至移動方向
-                    player.rotation.y = Math.atan2(moveX, -moveY) + Math.PI/2;
+                    player.position.addInPlace(fwd.scale(-moveData.y * 0.2));
+                    player.position.addInPlace(right.scale(moveData.x * 0.2));
+                    player.rotation.y = Math.atan2(moveData.x, -moveData.y) + camera.alpha + Math.PI/2;
                 }
             }
         });
