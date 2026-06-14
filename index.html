@@ -87,8 +87,7 @@
                     player = m[0]; 
                     player.scaling = new BABYLON.Vector3(2, 2, 2); 
                     player.rotationQuaternion = null; 
-                    // 將初始朝向設定為 Math.PI (180度)，確保背對視角
-                    player.rotation.y = Math.PI; 
+                    player.rotation.y = 0; 
                 });
             } catch (err) { alert("登入失敗: " + err.message); }
         }
@@ -108,7 +107,8 @@
                     stick.left = Math.sin(angle) * dist; stick.top = -Math.cos(angle) * dist;
                     moveData.x = Math.sin(angle) * (dist/50); moveData.y = Math.cos(angle) * (dist/50);
                 } else if (rotData.active && info.event.pointerId === rotData.id && player) {
-                    player.rotation.y += (info.event.clientX - rotData.lastX) * 0.01;
+                    // 修正旋轉係數，確保同步與順序正確
+                    player.rotation.y -= (info.event.clientX - rotData.lastX) * 0.01;
                     rotData.lastX = info.event.clientX;
                 }
             } else if (info.type === BABYLON.PointerEventTypes.POINTERUP) {
@@ -121,7 +121,8 @@
             if (player) {
                 camera.target = player.position.clone();
                 camera.beta = Math.PI / 3;
-                camera.alpha = -player.rotation.y - Math.PI / 2;
+                // 強制背對公式：相機 Alpha 與玩家角度偏移 90 度
+                camera.alpha = -player.rotation.y + Math.PI / 2;
                 
                 const fwd = new BABYLON.Vector3(Math.sin(player.rotation.y), 0, Math.cos(player.rotation.y));
                 const rgt = new BABYLON.Vector3(fwd.z, 0, -fwd.x);
